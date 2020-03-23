@@ -1,2 +1,4 @@
-# indy-android-ev
-Indy client for Android simulating Electric Vehicle in the privacy preserving charging scenario 
+# indy-android-ev-cs
+Contains two android aplications for use in the privacy preserving charging scenario :
+Client app for simulating Electric Vehicle 
+Server app for simulating Charging Station
