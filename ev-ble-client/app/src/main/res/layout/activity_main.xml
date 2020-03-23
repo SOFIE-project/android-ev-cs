@@ -1,0 +1,219 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    tools:context="com.spire.bledemo.app.MainActivity">
+
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FF6347">
+
+        <TextView
+            android:id="@+id/csTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:text="Charging Station Details"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
+
+        <TextView
+            android:id="@+id/csDetails"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/csTitle"
+            android:text=" Status: Searching \n CS Name: - \n MAC: - \n" />
+
+        <TextView
+            android:id="@+id/amountLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/csDetails"
+            android:text="Charge Amount: "
+            android:textAppearance="?android:attr/textAppearanceLarge" />
+
+        <EditText
+            android:id="@+id/input"
+            android:layout_width="60dp"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/csDetails"
+            android:layout_centerVertical="true"
+            android:layout_toRightOf="@+id/amountLabel"
+            android:inputType="number"
+            android:text="12" />
+
+        <Button
+            android:id="@+id/send"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/csDetails"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:onClick="sendClick"
+            android:text="Charge" />
+
+
+    </RelativeLayout>
+
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/check_0"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:scaleX="0.7"
+            android:scaleY="0.7"
+            android:src="@drawable/sign_check"
+            android:visibility="invisible"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="4dp"
+            android:layout_marginRight="4dp"
+            android:layout_toRightOf="@id/check_0"
+            android:layout_weight="1"
+            android:background="#c5c5c5"
+            android:text="Stage \t\t\t\t\t\t\t\t\t\t\t\t DID \t\t\t\t\t\t\t\t\t\t\t\t Time(ms)" />
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/stage1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/check_1"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:scaleX="0.7"
+            android:scaleY="0.7"
+            android:src="@drawable/sign_check"
+            android:visibility="visible"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="4dp"
+            android:layout_marginRight="4dp"
+            android:layout_toRightOf="@id/check_1"
+            android:layout_weight="1"
+            android:background="#c5c5c5"
+            android:text="stage1" />
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/stage2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/check_2"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:scaleX="0.7"
+            android:scaleY="0.7"
+            android:src="@drawable/sign_check"
+            android:visibility="visible" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toRightOf="@id/check_2"
+            android:layout_marginLeft="4dp"
+            android:layout_marginRight="4dp"
+            android:layout_weight="1"
+            android:background="#c5c5c5"
+            android:text="stage2" />
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/stage3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/check_3"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:scaleX="0.7"
+            android:scaleY="0.7"
+            android:src="@drawable/sign_check"
+            android:visibility="visible" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toRightOf="@id/check_3"
+            android:layout_marginLeft="4dp"
+            android:layout_marginRight="4dp"
+            android:layout_weight="1"
+            android:background="#c5c5c5"
+            android:text="stage3" />
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/stage4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/check_4"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:scaleX="0.7"
+            android:scaleY="0.7"
+            android:src="@drawable/sign_check"
+            android:visibility="visible" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toRightOf="@id/check_4"
+            android:layout_marginLeft="4dp"
+            android:layout_marginRight="4dp"
+            android:layout_weight="1"
+            android:background="#c5c5c5"
+            android:text="stage4" />
+
+    </RelativeLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/messagesLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="BLE messages:" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/messages"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </ScrollView>
+
+    </LinearLayout>
+
+
+</LinearLayout>
