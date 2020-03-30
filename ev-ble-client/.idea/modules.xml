@@ -3,7 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/unpacked.iml" filepath="$PROJECT_DIR$/unpacked.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ev-ble-client.iml" filepath="$PROJECT_DIR$/ev-ble-client.iml" />
     </modules>
   </component>
 </project>

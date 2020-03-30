@@ -114,8 +114,8 @@ public class BatteryServiceFragment extends ServiceFragment {
 
     mBatteryLevelCharacteristic =
             new BluetoothGattCharacteristic(CHARGING_STATE_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_NOTIFY | BluetoothGattCharacteristic.PROPERTY_READ,
-                    BluetoothGattCharacteristic.PERMISSION_WRITE | BluetoothGattCharacteristic.PERMISSION_READ);
+                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                    BluetoothGattCharacteristic.PERMISSION_WRITE);
     mBatteryLevelCharacteristic.addDescriptor(
             Peripheral.getClientCharacteristicConfigurationDescriptor());
     mBatteryLevelCharacteristic.addDescriptor(
@@ -126,7 +126,7 @@ public class BatteryServiceFragment extends ServiceFragment {
 
     mRXCharacteristics =
             new BluetoothGattCharacteristic(RX_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                     BluetoothGattCharacteristic.PERMISSION_READ);
     mRXCharacteristics.addDescriptor(
             Peripheral.getClientCharacteristicConfigurationDescriptor());
@@ -136,7 +136,7 @@ public class BatteryServiceFragment extends ServiceFragment {
 
     mTXCharacteristics =
             new BluetoothGattCharacteristic(TX_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
                     BluetoothGattCharacteristic.PERMISSION_WRITE);
     mTXCharacteristics.addDescriptor(
             Peripheral.getClientCharacteristicConfigurationDescriptor());

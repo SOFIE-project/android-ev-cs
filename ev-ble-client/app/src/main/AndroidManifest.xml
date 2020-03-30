@@ -18,10 +18,14 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme">
+
+        <service
+            android:name=".BluetoothLeService"
+            android:enabled="true"/>
+
         <service
             android:name=".IndyService"
-            android:enabled="true"
-            android:exported="true"></service>
+            android:enabled="true"/>
 
         <activity
             android:name=".MainActivity"
