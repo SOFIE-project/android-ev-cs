@@ -113,6 +113,7 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
 
     private BluetoothGattServer mGattServer;
     private final BluetoothGattServerCallback mGattServerCallback = new BluetoothGattServerCallback() {
+
         @Override
         public void onConnectionStateChange(BluetoothDevice device, final int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
@@ -122,12 +123,15 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                     if (mBluetoothManager.getConnectedDevices(BluetoothGattServer.GATT).size() == 1) {
                         mBluetoothDevices.add(device);
                         updateConnectedDevicesStatus();
+                        // experimental
+                        //mGattServer.connect(device, false);
                         Log.v(TAG, "Connected to device: " + device.getAddress());
                     } else {
                         mGattServer.cancelConnection(device);
                         Log.v(TAG, "Connection logically refused to " + device.getAddress());
                     }
                 } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                    //mGattServer.cancelConnection(device);
                     mBluetoothDevices.remove(device);
                     updateConnectedDevicesStatus();
                     Log.v(TAG, "Disconnected from device");
@@ -147,6 +151,8 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                 Log.e(TAG, "Error when connecting: " + status);
             }
         }
+
+
 
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset,
@@ -272,17 +278,8 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
 
         // If we are not being restored from a previous state then create and add the fragment.
         if (savedInstanceState == null) {
-            int peripheralIndex = getIntent().getIntExtra(Peripherals.EXTRA_PERIPHERAL_INDEX,
-                    /* default */ -1);
-            if (peripheralIndex == 0) {
-                mCurrentServiceFragment = new BatteryServiceFragment();
-            } else if (peripheralIndex == 1) {
-                mCurrentServiceFragment = new HeartRateServiceFragment();
-            } else if (peripheralIndex == 2) {
-                mCurrentServiceFragment = new HealthThermometerServiceFragment();
-            } else {
-                Log.wtf(TAG, "Service doesn't exist");
-            }
+            mCurrentServiceFragment = new BatteryServiceFragment();
+
             getFragmentManager()
                     .beginTransaction()
                     .add(R.id.fragment_container, mCurrentServiceFragment, CURRENT_FRAGMENT_TAG)

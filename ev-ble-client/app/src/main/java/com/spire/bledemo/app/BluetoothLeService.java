@@ -9,17 +9,20 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
+import android.nfc.Tag;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.ParcelUuid;
+import android.os.SystemClock;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -49,6 +52,7 @@ public class BluetoothLeService extends Service {
     // Event Constants
     public static final String CS_CONNECTED = "com.spire.bledemo.app.CS_CONNECTED";
     public static final String RX_MSG_RECVD = "com.spire.bledemo.app.RX_MSG_RECVD";
+    public static final String BLE_ERROR = "com.spire.bledemo.app.BLE_ERROR";
 
     public final static String ACTION_GATT_CONNECTED =
             "com.spire.bledemo.app.ACTION_GATT_CONNECTED";
@@ -70,6 +74,8 @@ public class BluetoothLeService extends Service {
     // Creating scanner settings for finding the CS service
     private List<ScanFilter> targetServices;
 
+    private volatile boolean  serviceFound = false;
+
     private void createScanFilter() {
         targetServices = new ArrayList<>();
         ScanFilter filter = new ScanFilter.Builder()
@@ -82,6 +88,7 @@ public class BluetoothLeService extends Service {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build();
 
+    private BluetoothLeScanner mbleScanner;
 
     // BLE Operation Queue for serial operations
     private OperationManager commandQueue;
@@ -98,7 +105,7 @@ public class BluetoothLeService extends Service {
     private BluetoothGattCharacteristic chargingProtocolState;
     private BluetoothGattCharacteristic tx;
     private BluetoothGattCharacteristic rx;
-    final private int mtuLength = 512;  // 512 on my phones, can't detect either
+    final private int mtuLength = 510;  // 514 on my phones, can't detect either
 
     // Worker thread to unblock the ble callbacks on binder thread
     private HandlerThread bleOperationHandlerThread = new HandlerThread("bleOperationHandlerThread");
@@ -111,11 +118,11 @@ public class BluetoothLeService extends Service {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
-            mBluetoothAdapter.getBluetoothLeScanner().stopScan(scanCallback);
+            mbleScanner.stopScan(scanCallback);
             mCommonUtils.writeLine("Barrier found!");
             mCommonUtils.stopTimer();
             peripheralDevice = result.getDevice();
-            mBluetoothGatt = peripheralDevice.connectGatt(getApplicationContext(), false, callback);
+            mBluetoothGatt = peripheralDevice.connectGatt(getApplicationContext(), false, callback, BluetoothDevice.TRANSPORT_LE, BluetoothDevice.PHY_LE_2M);
         }
     };
 
@@ -123,6 +130,24 @@ public class BluetoothLeService extends Service {
     // Main BTLE device callback where much of the logic occurs.
     private BluetoothGattCallback callback = new BluetoothGattCallback() {
         // Called whenever the device connection state changes, i.e. from disconnected to connected.
+
+
+//        @Override
+//        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+//            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
+//            commandQueue.nudge();
+//        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            super.onMtuChanged(gatt, mtu, status);
+            mCommonUtils.writeLine("mtu negotiated");
+            mCommonUtils.stopTimer();
+            commandQueue.operationCompleted();
+            broadcastUpdate(CS_CONNECTED, 0, null);
+//            mBluetoothGatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
+        }
+
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
@@ -130,23 +155,32 @@ public class BluetoothLeService extends Service {
                 mCommonUtils.writeLine("Connected!");
                 // Discover services.
                 mCommonUtils.stopTimer();
-                final BluetoothGatt staticGatt = gatt;
-                bleHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (!staticGatt.discoverServices()) {
-                            mCommonUtils.writeLine("Failed to start discovering services!");
-                        }
-                    }
-                });
+
+
+bleHandler.post(new Runnable() {
+    @Override
+    public void run() {
+        if (!mBluetoothGatt.discoverServices()) {
+            mCommonUtils.writeLine("Failed to start discovering services!");
+        }
+    }
+});
+
+
+//                bleHandler.postDelayed(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        if (!serviceFound) {
+//                            restartGattStack();
+//                            Log.v(TAG, "Error Service discovery did not complete");
+//                        }
+//                    }
+//                }, 1000);
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                 mCommonUtils.writeLine("Disconnected!");
                 gatt.close();
+                Log.v(TAG, "Error Connection malfunctioning");
 
-//                if(isAppIsVisible()) {
-////                   mBluetoothAdapter.getBluetoothLeScanner().startScan(targetServices, scanSettings, scanCallback);
-//                    gatt = peripheralDevice.connectGatt(getApplicationContext(), false, callback);
-//                }
             } else {
                 mCommonUtils.writeLine("Connection state changed.  New state: " + newState);
             }
@@ -160,12 +194,13 @@ public class BluetoothLeService extends Service {
             super.onServicesDiscovered(gatt, status);
             try {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
+                    serviceFound = true;
                     mCommonUtils.writeLine("Service discovery completed!");
                     mCommonUtils.stopTimer();
                     // Save reference to each characteristic.
-                    chargingProtocolState = gatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(CHARGING_STATE_UUID);
-                    tx = gatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(TX_UUID);
-                    rx = gatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(RX_UUID);
+                    chargingProtocolState = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(CHARGING_STATE_UUID);
+                    tx = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(TX_UUID);
+                    rx = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(RX_UUID);
 
                     // Setup notifications on RX characteristic changes (i.e. data received).
                     // First call setCharacteristicNotification to enable notification.
@@ -190,6 +225,8 @@ public class BluetoothLeService extends Service {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
+                Log.v(TAG, "Error Service discovery malfunctioning");
+                restartGattStack();
             }
         }
 
@@ -203,10 +240,14 @@ public class BluetoothLeService extends Service {
                     mRxBuffer.add(characteristic.getStringValue(0));
 
                     if (characteristic.getStringValue(0).endsWith("ä")) {
+
                         String rxMessage = mRxBuffer.extract();
                         String arxMessage = rxMessage.substring(0, rxMessage.length() - 1);
                         mCommonUtils.writeLine("wth: |" + arxMessage + "|");
                         mCommonUtils.stopTimer();
+                        Log.v(TAG, "Received last chunk of did: " + System.currentTimeMillis());
+
+
                         int presetStage = chargingProtocolState.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
                         broadcastUpdate(RX_MSG_RECVD, presetStage, arxMessage);
                     }
@@ -255,14 +296,15 @@ public class BluetoothLeService extends Service {
             super.onDescriptorWrite(gatt, descriptor, status);
             try {
                 mCommonUtils.writeLine("descriptor written");
+                mCommonUtils.stopTimer();
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
                 commandQueue.operationCompleted();
-                if (CHARACTERISTIC_USER_DESCRIPTION_UUID.equals(descriptor.getUuid())) {
-                    mCommonUtils.stopTimer();
-                    broadcastUpdate(CS_CONNECTED, 0, null);
-                }
+
+//                if (CHARACTERISTIC_USER_DESCRIPTION_UUID.equals(descriptor.getUuid())) {
+//
+//                }
             }
         }
 
@@ -270,6 +312,7 @@ public class BluetoothLeService extends Service {
 
 
     public boolean safeEnableNotification(final BluetoothGattCharacteristic bleCharacteristic) {
+
         if (mBluetoothGatt == null || bleCharacteristic == null) {
             return false;
         }
@@ -284,7 +327,7 @@ public class BluetoothLeService extends Service {
         });
 
 
-        commandQueue.request(new Runnable() {
+/*        commandQueue.request(new Runnable() {
             @Override
             public void run() {
                 //  update the characteristic's client descriptor to write client name.
@@ -295,6 +338,13 @@ public class BluetoothLeService extends Service {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            }
+        });*/
+
+        commandQueue.request(new Runnable() {
+            @Override
+            public void run() {
+                mBluetoothGatt.requestMtu(mtuLength + 7);
             }
         });
 
@@ -383,25 +433,27 @@ public class BluetoothLeService extends Service {
      * released properly.
      */
     public void releaseResources() {
+        bleOperationHandlerThread.quitSafely();
+
         if (mBluetoothGatt == null) {
             return;
         }
+
+        // For better reliability be careful to disconnect and close the connection.
+        //mBluetoothGatt.close();
+        mBluetoothGatt.disconnect();
         mBluetoothGatt.close();
+
         mBluetoothGatt = null;
-
-        if (mBluetoothGatt != null) {
-            // For better reliability be careful to disconnect and close the connection.
-            mBluetoothGatt.disconnect();
-            //mBluetoothGatt.close();
-            mBluetoothGatt = null;
-            tx = null;
-            rx = null;
-        }
-
-        bleOperationHandlerThread.quitSafely();
-
+        tx = null;
+        rx = null;
     }
 
+    public void closeGattConnection() {
+        if(mBluetoothGatt != null) {
+            mBluetoothGatt.close();
+        }
+    }
 
     private final IBinder mBinder = new LocalBinder();
 
@@ -445,7 +497,8 @@ public class BluetoothLeService extends Service {
             mBluetoothGatt = null;
         }
         mCommonUtils.startTimer();
-        mBluetoothAdapter.getBluetoothLeScanner().startScan(targetServices, scanSettings, scanCallback);
+        mbleScanner= mBluetoothAdapter.getBluetoothLeScanner();
+        mbleScanner.startScan(targetServices, scanSettings, scanCallback);
     }
 
     private void broadcastUpdate(final String action, int stage, String msg) {
@@ -475,6 +528,22 @@ public class BluetoothLeService extends Service {
 //        }
 //        return delimitedStream.toByteArray();
 //    }
+
+//-------------------------------------------------------------------------------------------------
+// BLE service related code
+
+    private void restartGattStack() {
+        serviceFound = false;
+        if(mBluetoothGatt != null) {
+            //mBluetoothGatt.disconnect();
+        }
+
+//        mBluetoothGatt.close();
+        mBluetoothGatt = null;
+        tx = null;
+        rx = null;
+        chargingProtocolState = null;
+    }
 
 
 }

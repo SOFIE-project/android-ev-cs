@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import static android.content.ContentValues.TAG;
+import static com.spire.bledemo.app.BluetoothLeService.BLE_ERROR;
 import static com.spire.bledemo.app.BluetoothLeService.CS_CONNECTED;
 import static com.spire.bledemo.app.BluetoothLeService.RX_MSG_RECVD;
 
@@ -64,7 +65,7 @@ public class MainActivity extends Activity {
         input = (EditText) findViewById(R.id.input);
         mCsDetails = findViewById(R.id.csDetails);
 
-        mIndyService = new IndyService();
+        mIndyService = new IndyService(getApplicationContext());
         LocalBroadcastManager.getInstance(this).registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
@@ -86,6 +87,9 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         setAppIsVisible(false);
+        if (mBluetoothLeService != null) {
+            mBluetoothLeService.closeGattConnection();
+        }
     }
 
 
@@ -136,6 +140,7 @@ public class MainActivity extends Activity {
         }
         return super.onOptionsItemSelected(item);
     }
+
 
 //-------------------------------------------------------------------------------------------------
 // EV - CS communication message building functions
@@ -227,6 +232,7 @@ public class MainActivity extends Activity {
         intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
         intentFilter.addAction(CS_CONNECTED);
         intentFilter.addAction(RX_MSG_RECVD);
+        intentFilter.addAction(BLE_ERROR);
         return intentFilter;
     }
 
@@ -273,6 +279,8 @@ public class MainActivity extends Activity {
                 } else {
                     writeLine("Unexpected Message Received");
                 }
+            } else if (BLE_ERROR.equals(action)) {
+                //reattachService();
             }
         }
     };

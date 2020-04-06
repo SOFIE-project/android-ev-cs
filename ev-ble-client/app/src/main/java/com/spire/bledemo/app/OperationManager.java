@@ -27,4 +27,10 @@ public class OperationManager {
 
     }
 
+    public synchronized void nudge() {
+        if(currentOp != null) {
+            currentOp.run();
+        }
+    }
+
 }

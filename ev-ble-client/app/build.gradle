@@ -4,7 +4,7 @@ android {
     compileSdkVersion 26
     buildToolsVersion '28.0.3'
     defaultConfig {
-        minSdkVersion 21
+        minSdkVersion 26
         targetSdkVersion 26
         versionCode 1
         versionName '1.0'
@@ -17,9 +17,17 @@ android {
     }
     productFlavors {
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "com.android.support:support-v4:26.0.0"
+//    implementation 'net.java.dev.jna:jna:4.5.1'
+//    implementation 'org.apache.commons:commons-lang3:3.9'
+//    implementation 'androidx.appcompat:appcompat:1.1.0'
+
 }

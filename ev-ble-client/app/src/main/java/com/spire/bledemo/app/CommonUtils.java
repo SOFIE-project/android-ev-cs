@@ -8,20 +8,20 @@ import static android.content.ContentValues.TAG;
 public class CommonUtils {
 
     //Timing
-    private long timer_start = 0;
-    private long timer_end = 0;
+    private volatile long timer_start = 0;
+    private volatile long timer_end = 0;
 
 
-    public void startTimer() {
+    public synchronized void startTimer() {
         timer_start = SystemClock.elapsedRealtime();
         timer_end = 0;
     }
 
     // Can be called multiple times to get lap times
-    public void stopTimer() {
+    public synchronized void stopTimer() {
         timer_end = SystemClock.elapsedRealtime();
         writeLine("Timer: " + (timer_end - timer_start) + " ms.");
-        //timer_start = timer_end;
+        timer_start = timer_end;
         timer_end = 0;
     }
 

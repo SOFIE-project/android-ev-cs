@@ -24,6 +24,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.os.Bundle;
 import android.os.ParcelUuid;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -76,11 +77,13 @@ public class BatteryServiceFragment extends ServiceFragment {
   private ScrollView mScrollView;
   private TextView mHandshakeState;
 
-  private int mtuLength = 512;
+  private int mtuLength = 510;
   private MessageBuffer mTxBuffer;
   private MessageBuffer mRxBuffer;
 
   private SeekBar mBatteryLevelSeekBar;
+
+  private CommonUtils mCommonUtils;
 
   private final OnSeekBarChangeListener mOnSeekBarChangeListener = new OnSeekBarChangeListener() {
     @Override
@@ -182,6 +185,8 @@ public class BatteryServiceFragment extends ServiceFragment {
       mRxBuffer = new MessageBuffer(mtuLength);
 
       mIndyService = new IndyService(getContext());
+      mCommonUtils = new CommonUtils();
+
     } catch (ClassCastException e) {
       throw new ClassCastException(activity.toString()
           + " must implement ServiceFragmentDelegate");
@@ -247,12 +252,20 @@ public class BatteryServiceFragment extends ServiceFragment {
 
   @Override
   public void notificationSent(BluetoothDevice device, int status) {
-    String nextChunk = mRxBuffer.poll();
+    getActivity().runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+        String nextChunk = mRxBuffer.poll();
 
-    if(nextChunk != null) {
-      mRXCharacteristics.setValue(nextChunk);
-      mDelegate.sendNotificationToDevices(mRXCharacteristics);
-    }
+        if(nextChunk != null) {
+          mRXCharacteristics.setValue(nextChunk);
+          mDelegate.sendNotificationToDevices(mRXCharacteristics);
+        } else {
+          Log.v(TAG, "Finished sending did: " + System.currentTimeMillis());
+        }
+      }
+    });
+
   }
 
 
@@ -302,6 +315,7 @@ public class BatteryServiceFragment extends ServiceFragment {
     switch (newState) {
       case 0: // write did to rx
         String tempDID = mIndyService.generateTempDID1();
+        Log.v(TAG, "Started sending did: " + System.currentTimeMillis());
         writeLongLocalCharacteristic(mRXCharacteristics, tempDID);
         break;
 
@@ -311,6 +325,7 @@ public class BatteryServiceFragment extends ServiceFragment {
 
       case 2: // write real DID
         String tempDID2 = mIndyService.generateDID2erProofAndProofRequestForEV();
+        Log.v(TAG, "Started real did: " + System.currentTimeMillis());
         writeLongLocalCharacteristic(mRXCharacteristics, tempDID2);
         break;
 
