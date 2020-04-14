@@ -3,29 +3,24 @@ package com.spire.bledemo.app;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.AsyncTask;
-import android.os.Build;
-//import android.support.annotation.RequiresApi;
 import android.util.Log;
-import android.view.View;
 
-//import org.hyperledger.indy.sdk.IndyException;
-//import org.hyperledger.indy.sdk.anoncreds.Anoncreds;
-//import org.hyperledger.indy.sdk.anoncreds.AnoncredsResults;
-//import org.hyperledger.indy.sdk.anoncreds.CredentialsSearchForProofReq;
-//import org.hyperledger.indy.sdk.did.Did;
-//import org.hyperledger.indy.sdk.did.DidJSONParameters;
-//import org.hyperledger.indy.sdk.did.DidResults;
-//import org.hyperledger.indy.sdk.ledger.Ledger;
-//import org.hyperledger.indy.sdk.pool.Pool;
-//import org.hyperledger.indy.sdk.wallet.Wallet;
-//import indy_utils.IndyUtils;
-
-
-
-import org.json.JSONArray;
+import org.hyperledger.indy.sdk.anoncreds.AnoncredsResults;
+import org.hyperledger.indy.sdk.did.DidResults;
+import org.hyperledger.indy.sdk.pool.Pool;
+import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONObject;
 
-import java.util.concurrent.ExecutionException;
+import fi.aalto.indy_utils.CredentialDefinitionUtils;
+import fi.aalto.indy_utils.CredentialSchemaUtils;
+import fi.aalto.indy_utils.CredentialUtils;
+import fi.aalto.indy_utils.DIDUtils;
+import fi.aalto.indy_utils.IndyUtils;
+import fi.aalto.indy_utils.PoolUtils;
+import fi.aalto.indy_utils.ProofUtils;
+import fi.aalto.indy_utils.WalletUtils;
+
+//import android.support.annotation.RequiresApi;
 
 
 public class IndyService {
@@ -73,229 +68,233 @@ public class IndyService {
     }
 
 
-/*
-//    @SuppressLint("StaticFieldLeak")
-//    final class IndyInitialisationTask extends AsyncTask<Void, Void, Void> {
-//        @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-//        @Override
-//        protected Void doInBackground(Void... voids) {
-//            initialiseTestObjects();
-//            return null;                // null must be returned, as in https://www.quora.com/Why-does-doInBackground-in-the-AsyncTask-class-need-to-return-null-even-though-it%E2%80%99s-returning-type-is-set-to-void/answer/Vishal-Ratna
-//        }
-//    }
-//
-//    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-//    private void initialiseTestObjects() {
-//        try {
-//            Log.i(this.getClass().toString(), "Initialising Indy context...");
-//            IndyUtils.initialiseIndyDirectory(mContext);
-//
-//            JSONObject evWalletConfig = new JSONObject().put("id", "evWallet");
-//            JSONObject csoWalletConfig = new JSONObject().put("id", "csoWallet");
-//            JSONObject csWalletConfig = new JSONObject().put("id", "csWallet");
-//            JSONObject csoStewardWalletConfig = new JSONObject().put("id", "csoStewardWallet");
-//            JSONObject testWalletCredentials = new JSONObject().put("key", "password");
-//
-//            String csoStewardDIDSeed = "F37DeEe0ba861dFdca5bBF466DAcaB11";                                  //The DID generated from this seed has already been added (externally) to the pool as a STEWARD.
-//
-//            try {
-//                Log.i(this.getClass().toString(), "Creating EV, CSO, CS and CSO steward wallets...");
-//                Wallet.createWallet(evWalletConfig.toString(), testWalletCredentials.toString()).get();
-//                Wallet.createWallet(csoWalletConfig.toString(), testWalletCredentials.toString()).get();
-//                Wallet.createWallet(csWalletConfig.toString(), testWalletCredentials.toString()).get();
-//                Wallet.createWallet(csoStewardWalletConfig.toString(), testWalletCredentials.toString()).get();
-//            } catch (InterruptedException | ExecutionException | IndyException ignored) {
-//            } finally {
-//                Log.i(this.getClass().toString(), "Opening EV wallet...");
-//                Wallet evWallet = Wallet.openWallet(evWalletConfig.toString(), testWalletCredentials.toString()).get();
-//                Log.i(this.getClass().toString(), "Opening CSO wallet...");
-//                Wallet csoWallet = Wallet.openWallet(csoWalletConfig.toString(), testWalletCredentials.toString()).get();
-//                Log.i(this.getClass().toString(), "Opening CS wallet...");
-//                Wallet csWallet = Wallet.openWallet(csWalletConfig.toString(), testWalletCredentials.toString()).get();
-//                Log.i(this.getClass().toString(), "Opening CSO steward wallet...");
-//                Wallet csoStewardWallet = Wallet.openWallet(csoStewardWalletConfig.toString(), testWalletCredentials.toString()).get();
-//
-//                String poolName = "SOFIE";
-//                String poolConfigPath = IndyUtils.getPoolConfigPath();
-//                JSONObject poolCreationConfig = new JSONObject().put("genesis_txn", poolConfigPath);
-//                try {
-//                    Log.i(this.getClass().toString(), "Creating test pool configuration...");
-//                    Pool.createPoolLedgerConfig(poolName, poolCreationConfig.toString()).get();
-//                    Log.i(this.getClass().toString(), "Test pool configuration created.");
-//                } catch (InterruptedException | ExecutionException | IndyException ignored) {
-//                } finally {
-//                    Log.i(this.getClass().toString(), "Opening test pool...");
-//                    Pool.setProtocolVersion(2).get();
-//                    Pool testPool = Pool.openPoolLedger(poolName, null).get();
-//                    Log.i(this.getClass().toString(), "Test pool opened.");
-//
-//                    Log.i(this.getClass().toString(), "Creating EV DID...");
-//                    DidResults.CreateAndStoreMyDidResult evDID = Did.createAndStoreMyDid(evWallet, new JSONObject().toString()).get();         //A new DID is generated each time, as of today.
-//                    Log.i(this.getClass().toString(), "EV DID created.");
-//
-//                    Log.i(this.getClass().toString(), "Creating CSO DID...");
-//                    DidResults.CreateAndStoreMyDidResult csoDID = Did.createAndStoreMyDid(csoWallet, new JSONObject().toString()).get();         //A new DID is generated each time, as of today.
-//                    Log.i(this.getClass().toString(), String.format("CSO DID created: %s", csoDID.getDid()));
-//
-//                    Log.i(this.getClass().toString(), "Creating CS DID...");
-//                    DidResults.CreateAndStoreMyDidResult csDID = Did.createAndStoreMyDid(csWallet, new JSONObject().toString()).get();         //A new DID is generated each time, as of today.
-//                    Log.i(this.getClass().toString(), "CS DID created.");
-//
-//                    Log.i(this.getClass().toString(), "Calculating CSO steward DID...");
-//                    DidJSONParameters.CreateAndStoreMyDidJSONParameter csoStewardDIDInfo = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, csoStewardDIDSeed, null, null);
-//                    DidResults.CreateAndStoreMyDidResult csoStewardDID = Did.createAndStoreMyDid(csoStewardWallet, csoStewardDIDInfo.toJson()).get();
-//                    Log.i(this.getClass().toString(), String.format("CSO steward DID calculated: %s - %s", csoStewardDID.getDid(), csoStewardDID.getVerkey()));
-//
-//                    Log.i(this.getClass().toString(), "Registering CSO identity on the ledger...");
-//                    JSONObject csoRegistrationNymRequest = new JSONObject(Ledger.buildNymRequest(csoStewardDID.getDid(), csoDID.getDid(), csoDID.getVerkey(), "CSO", "ENDORSER").get());
-//                    JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(testPool, csoStewardWallet, csoStewardDID.getDid(), csoRegistrationNymRequest.toString()).get());
-//                    if (!requestResult.getString("op").equals("REPLY")) {
-//                        Log.e(this.getClass().toString(), "Writing to ledger failed.");
-//                        return;
-//                    }
-//                    Log.i(this.getClass().toString(), String.format("CSO identity registered on the ledger with receipt: %s", requestResult.toString()));
-//
-//
-//                    String csoInfoCredentialSchemaName = "CSO-Info-Credential-Schema";
-//                    String csoInfoCredentialSchemaVersion = "1.0";
-//                    JSONArray csoInfoCredentialSchemaAttributes = new JSONArray(new String[]{"CSO"});
-//                    Log.i(this.getClass().toString(), "Creating credential schema for CS-CSO info and writing to the ledger...");
-//                    AnoncredsResults.IssuerCreateSchemaResult csoInfoCredentialSchema = Anoncreds.issuerCreateSchema(csoDID.getDid(), csoInfoCredentialSchemaName, csoInfoCredentialSchemaVersion, csoInfoCredentialSchemaAttributes.toString()).get();
-//                    Log.i(this.getClass().toString(), String.format("Credential schema for CS-CSO info created: %s", csoInfoCredentialSchema.getSchemaJson()));
-//                    JSONObject csoInfoCredentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(csoDID.getDid(), csoInfoCredentialSchema.getSchemaJson()).get());
-//                    requestResult = new JSONObject(Ledger.signAndSubmitRequest(testPool, csoWallet, csoDID.getDid(), csoInfoCredentialsSchemaNymRequest.toString()).get());
-//                    Log.i(this.getClass().toString(), String.format("Credential schema written to the ledger with receipt: %s", requestResult.toString()));
-//                    if (!requestResult.getString("op").equals("REPLY")) {
-//                        Log.e(this.getClass().toString(), "Writing to ledger failed.");
-//                        return;
-//                    }
-//
-//                    JSONObject csoInfoCredentialSchemaNymGetRequest = new JSONObject(Ledger.buildGetSchemaRequest(csoDID.getDid(), csoInfoCredentialSchema.getSchemaId()).get());
-//                    requestResult = new JSONObject(Ledger.submitRequest(testPool, csoInfoCredentialSchemaNymGetRequest.toString()).get());
-//                    JSONObject csoInfoCredentialSchemaFromLedger = new JSONObject(Ledger.parseGetSchemaResponse(requestResult.toString()).get().getObjectJson());
-//
-//                    String csoInfoCredentialDefinitionName = "CSO-Info-Credential-Definition";
-//                    Log.i(this.getClass().toString(), "Creating credential definition for CS-CSO info and writing to the ledger...");
-//                    AnoncredsResults.IssuerCreateAndStoreCredentialDefResult csoInfoCredentialDefinition = Anoncreds.issuerCreateAndStoreCredentialDef(csoWallet, csoDID.getDid(), csoInfoCredentialSchemaFromLedger.toString(), csoInfoCredentialDefinitionName, null, null).get();
-//                    Log.i(this.getClass().toString(), String.format("Credential definition for CS-CSO info created: %s", csoInfoCredentialDefinition.getCredDefJson()));
-//                    JSONObject csoInfoCredentialDefinitionNymRequest = new JSONObject(Ledger.buildCredDefRequest(csoDID.getDid(), csoInfoCredentialDefinition.getCredDefJson()).get());
-//                    requestResult = new JSONObject(Ledger.signAndSubmitRequest(testPool, csoWallet, csoDID.getDid(), csoInfoCredentialDefinitionNymRequest.toString()).get());
-//                    if (!requestResult.getString("op").equals("REPLY")) {
-//                        Log.e(this.getClass().toString(), "Writing to ledger failed.");
-//                        return;
-//                    }
-//                    Log.i(this.getClass().toString(), String.format("Credential definition written to the ledger with receipt: %s", requestResult.toString()));
-//
-//
-//                    Log.i(this.getClass().toString(), "Creating credential offer for CS-CSO info...");
-//                    JSONObject csoInfoCredentialOffer = new JSONObject(Anoncreds.issuerCreateCredentialOffer(csoWallet, csoInfoCredentialDefinition.getCredDefId()).get());
-//                    Log.i(this.getClass().toString(), String.format("Credential offer for CS-CSO info created: %s", csoInfoCredentialOffer.toString()));
-//
-//                    Log.i(this.getClass().toString(), "Creating master secret for CS wallet...");
-//                    final String csMasterSecretID = "csMasterSecret";
-//                    try {
-//                        Anoncreds.proverCreateMasterSecret(csWallet, csMasterSecretID).get();
-//                    } catch (InterruptedException | ExecutionException | IndyException ignored) {
-//                    } finally {
-//                        Log.i(this.getClass().toString(), String.format("Master secret for CS wallet created: %s", csMasterSecretID));
-//                        Log.i(this.getClass().toString(), "Creating credential request for CS-CSO info...");
-//                        AnoncredsResults.ProverCreateCredentialRequestResult csoInfoCredentialRequest = Anoncreds.proverCreateCredentialReq(csWallet, csDID.getDid(), csoInfoCredentialOffer.toString(), csoInfoCredentialDefinition.getCredDefJson(), csMasterSecretID).get();
-//                        Log.i(this.getClass().toString(), String.format("Credential request for CS-CSO info created: %s", csoInfoCredentialRequest.getCredentialRequestJson()));
-//
-//                        JSONObject csoInfoCredentialCSOAttribute = new JSONObject().put("raw", csoDID.getDid()).put("encoded", String.format("%d", csoDID.getDid().hashCode()));
-//
-//                        JSONObject csoInfoCredentialContent = new JSONObject().put("CSO", csoInfoCredentialCSOAttribute);
-//                        Log.i(this.getClass().toString(), "Creating credential for CS-CSO info...");
-//                        AnoncredsResults.IssuerCreateCredentialResult csoInfoCredential = Anoncreds.issuerCreateCredential(csoWallet, csoInfoCredentialOffer.toString(), csoInfoCredentialRequest.getCredentialRequestJson(), csoInfoCredentialContent.toString(), null, -1).get();
-//                        Log.i(this.getClass().toString(), String.format("Credential for CS-CSO info created: %s", csoInfoCredential.getCredentialJson()));
-//
-//                        Log.i(this.getClass().toString(), "Saving credential for CS-CSO info into CS wallet...");
-//                        Anoncreds.proverStoreCredential(csWallet, null, csoInfoCredentialRequest.getCredentialRequestMetadataJson(), csoInfoCredential.getCredentialJson(), csoInfoCredentialDefinition.getCredDefJson(), csoInfoCredential.getRevocRegDeltaJson()).get();
-//                        Log.i(this.getClass().toString(), "Credential for CS-CSO info saved into CS wallet");
-//
-//                        Log.i(this.getClass().toString(), "Creating CSO Ownership proof request...");
-//                        JSONObject csoOwnershipProofRequest = new JSONObject()
-//                                .put("name", "CSO Ownership Proof Request")
-//                                .put("version", "1.0")
-//                                .put("nonce", Anoncreds.generateNonce().get())
-//                                .put("requested_predicates", new JSONObject()
-//                                        .put("cso_id_min", new JSONObject()
-//                                                .put("name", "CSO")
-//                                                .put("p_type", ">=")
-//                                                .put("p_value", csoDID.getDid().hashCode())
-//                                                .put("restrictions", new JSONArray()
-//                                                        .put(new JSONObject()
-//                                                                .put("cred_def_id", csoInfoCredentialDefinition.getCredDefId())
-//                                                                .put("issuer_did", csoDID.getDid())
-//                                                        )
-//                                                )
-//                                        )
-//                                        .put("cso_id_max", new JSONObject()
-//                                                .put("name", "CSO")
-//                                                .put("p_type", "<=")
-//                                                .put("p_value", csoDID.getDid().hashCode())
-//                                                .put("restrictions", new JSONArray()
-//                                                        .put(new JSONObject()
-//                                                                .put("cred_def_id", csoInfoCredentialDefinition.getCredDefId())
-//                                                                .put("issuer_did", csoDID.getDid())
-//                                                        )
-//                                                )
-//                                        )
-//                                );
-//                        Log.i(this.getClass().toString(), String.format("CSO Ownership proof request created: %s", csoOwnershipProofRequest));
-//
-//                        Log.i(this.getClass().toString(), "Selecting credentials for CSO Ownership proof request...");
-//                        CredentialsSearchForProofReq credentialsSearch = CredentialsSearchForProofReq.open(csWallet, csoOwnershipProofRequest.toString(), null).get();
-//                        JSONObject credentialForCSOMin = new JSONObject(new JSONArray(credentialsSearch.fetchNextCredentials("cso_id_min", 1).get()).getJSONObject(0).getString("cred_info"));
-//                        JSONObject credentialForCSOMax = new JSONObject(new JSONArray(credentialsSearch.fetchNextCredentials("cso_id_max", 1).get()).getJSONObject(0).getString("cred_info"));
-//                        credentialsSearch.close();
-//                        JSONObject proofCredentials = new JSONObject()
-//                                .put("self_attested_attributes", new JSONObject())
-//                                .put("requested_attributes", new JSONObject())
-//                                .put("requested_predicates", new JSONObject()
-//                                        .put("cso_id_min", new JSONObject()
-//                                                .put("cred_id", credentialForCSOMin.getString("referent"))
-//                                        )
-//                                        .put("cso_id_max", new JSONObject()
-//                                                .put("cred_id", credentialForCSOMax.getString("referent"))
-//                                        )
-//                                );
-//                        Log.i(this.getClass().toString(), String.format("Credentials for CSO Ownership proof request selected: %s", proofCredentials));
-//
-//                        Log.i(this.getClass().toString(), "Creating proof for CSO Ownership proof request...");
-//                        JSONObject csoInfoProof = new JSONObject(Anoncreds.proverCreateProof(csWallet, csoOwnershipProofRequest.toString(), proofCredentials.toString(), csMasterSecretID, new JSONObject().put(csoInfoCredentialSchema.getSchemaId(), new JSONObject(csoInfoCredentialSchema.getSchemaJson())).toString(), new JSONObject().put(csoInfoCredentialDefinition.getCredDefId(), new JSONObject(csoInfoCredentialDefinition.getCredDefJson())).toString(), new JSONObject().toString()).get());
-//                        Log.i(this.getClass().toString(), String.format("Proof for CSO Ownership proof request created: %s", csoInfoProof));
-//
-//                        Log.i(this.getClass().toString(), "Verifying proof presented by the CS");
-//                        boolean proofResult = Anoncreds.verifierVerifyProof(csoOwnershipProofRequest.toString(), csoInfoProof.toString(), new JSONObject().put(csoInfoCredentialSchema.getSchemaId(), new JSONObject(csoInfoCredentialSchema.getSchemaJson())).toString(), new JSONObject().put(csoInfoCredentialDefinition.getCredDefId(), new JSONObject(csoInfoCredentialDefinition.getCredDefJson())).toString(), new JSONObject().toString(), new JSONObject().toString()).get();
-//                        Log.i(this.getClass().toString(), String.format("Proof presented by the CS verified with result: %b", proofResult));
-//
-//                        Log.i(this.getClass().toString(), "Closing test pool...");
-//                        testPool.close();
-//                        Log.i(this.getClass().toString(), "Test pool closed.");
-//                        Log.i(this.getClass().toString(), "Closing EV wallet...");
-//                        evWallet.close();
-//                        Log.i(this.getClass().toString(), "EV wallet closed.");
-//                        Log.i(this.getClass().toString(), "Closing CSO wallet...");
-//                        csoWallet.close();
-//                        Log.i(this.getClass().toString(), "CSO wallet closed.");
-//                        Log.i(this.getClass().toString(), "Closing CS wallet...");
-//                        csWallet.close();
-//                        Log.i(this.getClass().toString(), "CS wallet closed.");
-//                        Log.i(this.getClass().toString(), "Closing CSO steward wallet...");
-//                        csoStewardWallet.close();
-//                        Log.i(this.getClass().toString(), "CSO steward wallet closed.");
-//                    }
-//                }
-//            }
-//        } catch (Exception e) {
-//            Log.e(this.getClass().toString(), e.getLocalizedMessage());
-//            Log.e(this.getClass().toString(), e.getMessage());
-//            Log.e(this.getClass().toString(), e.getCause().toString());
-//            e.printStackTrace();
-//        }
-//    }
-*/
+    @SuppressLint("StaticFieldLeak")
+    final class IndyInitialisationTask extends AsyncTask<Void, Void, Void> {
+        @Override
+        protected Void doInBackground(Void... voids) {
+            initialiseTestObjects();
+            return null;                // null must be returned, as in https://www.quora.com/Why-does-doInBackground-in-the-AsyncTask-class-need-to-return-null-even-though-it%E2%80%99s-returning-type-is-set-to-void/answer/Vishal-Ratna
+        }
+    }
+
+    private void initialiseTestObjects() {
+        try {
+
+            // 1. Indy initialisation
+
+            Log.i(this.getClass().toString(), "Initialising Indy context...");
+            IndyUtils.initialise(mContext);
+
+            // 2. Wallets creation
+
+            Log.i(this.getClass().toString(), "Creating EV, CSO, CS, DSO and steward wallets...");
+            WalletUtils.createEVWallet();
+            WalletUtils.createCSWallet();
+            WalletUtils.createCSOWallet();
+            WalletUtils.createDSOWallet();
+            WalletUtils.createStewardWallet();
+
+            // 3. Wallets opening
+
+            Log.i(this.getClass().toString(), "Opening EV wallet...");
+            Wallet evWallet = WalletUtils.openEVWallet();
+            Log.i(this.getClass().toString(), "Opening CSO wallet...");
+            Wallet csoWallet = WalletUtils.openCSOWallet();
+            Log.i(this.getClass().toString(), "Opening DSO wallet...");
+            Wallet dsoWallet = WalletUtils.openDSOWallet();
+            Log.i(this.getClass().toString(), "Opening CS wallet...");
+            Wallet csWallet = WalletUtils.openCSWallet();
+            Log.i(this.getClass().toString(), "Opening steward wallet...");
+            Wallet stewardWallet = WalletUtils.openStewardWallet();
+
+            // 4. Pool configuration + connection
+
+            Log.i(this.getClass().toString(), "Creating test pool configuration...");
+            PoolUtils.createSOFIEPoolConfig();
+            Log.i(this.getClass().toString(), "Test pool configuration created.");
+
+            Log.i(this.getClass().toString(), "Connecting to SOFIE pool...");
+            Pool sofiePool = PoolUtils.connectToSOFIEPool();
+            Log.i(this.getClass().toString(), "Connected to SOFIE pool.");
+
+            // 5. DIDs creation
+
+            Log.i(this.getClass().toString(), "Calculating EV DID...");
+            DidResults.CreateAndStoreMyDidResult evDID = DIDUtils.createEVDID(evWallet);
+            Log.i(this.getClass().toString(), String.format("EV DID calculated: %s - %s", evDID.getDid(), evDID.getVerkey()));
+
+            Log.i(this.getClass().toString(), "Calculating CS DID...");
+            DidResults.CreateAndStoreMyDidResult csDID = DIDUtils.createCSDID(csWallet);
+            Log.i(this.getClass().toString(), String.format("CS DID calculated: %s - %s", csDID.getDid(), csDID.getVerkey()));
+
+            Log.i(this.getClass().toString(), "Calculating steward DID...");
+            DidResults.CreateAndStoreMyDidResult stewardDID = DIDUtils.createStewardDID(stewardWallet);
+            Log.i(this.getClass().toString(), String.format("CSO steward DID calculated: %s - %s", stewardDID.getDid(), stewardDID.getVerkey()));
+
+            Log.i(this.getClass().toString(), "Calculating and writing on ledger CSO DID...");
+            DidResults.CreateAndStoreMyDidResult csoDID = DIDUtils.createAndWriteCSODID(csoWallet, stewardWallet, stewardDID.getDid(), sofiePool);
+            Log.i(this.getClass().toString(), String.format("CSO DID calculated and written on ledger: %s - %s", csoDID.getDid(), csoDID.getVerkey()));
+
+            Log.i(this.getClass().toString(), "Calculating and writing on ledger DSO DID...");
+            DidResults.CreateAndStoreMyDidResult dsoDID = DIDUtils.createAndWriteDSODID(dsoWallet, stewardWallet, stewardDID.getDid(), sofiePool);
+            Log.i(this.getClass().toString(), String.format("DSO DID calculated and written on ledger: %s - %s", dsoDID.getDid(), dsoDID.getVerkey()));
+
+            // 6. Credential schemas creation
+
+            Log.i(this.getClass().toString(), "Creating and writing on ledger credential schema for CS-CSO info...");
+            AnoncredsResults.IssuerCreateSchemaResult csoInfoCredentialSchema = CredentialSchemaUtils.createAndWriteCSOInfoCredentialSchema(csoDID.getDid(), csoWallet, sofiePool);
+            Log.i(this.getClass().toString(), String.format("Credential schema for CS-CSO info created and written on ledger."));
+
+            JSONObject csoInfoCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(csoDID.getDid(), csoInfoCredentialSchema.getSchemaId(), sofiePool);
+            Log.i(this.getClass().toString(), String.format("CS-CSO info credential schema fetched from ledger: %s", csoInfoCredentialSchemaFromLedger));
+
+            Log.i(this.getClass().toString(), "Creating and writing on ledger credential schema for CS-DSO district info...");
+            AnoncredsResults.IssuerCreateSchemaResult dsoDistrictCredentialSchema = CredentialSchemaUtils.createAndWriteDSODistrictCredentialSchema(dsoDID.getDid(), dsoWallet, sofiePool);
+            Log.i(this.getClass().toString(), String.format("Credential schema for CS-DSO district info created and written on ledger."));
+
+            JSONObject dsoDistrictCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(dsoDID.getDid(), dsoDistrictCredentialSchema.getSchemaId(), sofiePool);
+            Log.i(this.getClass().toString(), String.format("CS-DSO district info credential schema fetched from ledger: %s", dsoDistrictCredentialSchemaFromLedger));
+
+            // 7. Credential definitions creation
+
+            Log.i(this.getClass().toString(), "Creating and writing on ledger credential definition for CS-CSO info...");
+            AnoncredsResults.IssuerCreateAndStoreCredentialDefResult csoInfoCredentialDefinition = CredentialDefinitionUtils.createAndWriteCSOInfoCredentialDefinition(csoDID.getDid(), csoWallet, csoInfoCredentialSchemaFromLedger.getJSONObject("object"), sofiePool);
+            Log.i(this.getClass().toString(), String.format("Credential definition for CS-CSO info created and written on ledger."));
+
+            JSONObject csoInfoCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDID.getDid(), csoInfoCredentialDefinition.getCredDefId(), sofiePool);
+            Log.i(this.getClass().toString(), String.format("CS-CSO info credential definition fetched from ledger: %s", csoInfoCredentialDefFromLedger));
+
+            Log.i(this.getClass().toString(), "Creating and writing on ledger credential definition for CS-DSO district info...");
+            AnoncredsResults.IssuerCreateAndStoreCredentialDefResult dsoDistrictCredentialDefinition = CredentialDefinitionUtils.createAndWriteDSODistrictCredentialDefinition(dsoDID.getDid(), dsoWallet, dsoDistrictCredentialSchemaFromLedger.getJSONObject("object"), sofiePool);
+            Log.i(this.getClass().toString(), String.format("Credential definition for CS-DSO district info created and written on ledger."));
+
+            JSONObject dsoDistrictCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(dsoDID.getDid(), dsoDistrictCredentialDefinition.getCredDefId(), sofiePool);
+            Log.i(this.getClass().toString(), String.format("CS-DSO district info credential definition fetched from ledger: %s", dsoDistrictCredentialDefFromLedger));
+
+
+//                Log.i(this.getClass().toString(), "A");
+//                BlobStorageWriter tailsWriter = BlobStorageWriter.openWriter("default", new JSONObject().put("base_dir", IndyUtils.getTailsFilePath(getApplicationContext())).put("uri_pattern", "").toString()).get();
+//                Log.i(this.getClass().toString(), "B");
+//                Anoncreds.issuerCreateAndStoreRevocReg(csoWallet, csoDID.getDid(), "CL_ACCUM", "tag", csoInfoCredentialFromLedgerResult.getObjectJson(), new JSONObject().toString(), tailsWriter).get();
+//                Log.i(this.getClass().toString(), "C");
+
+            // 8. Credential offers creation
+
+            Log.i(this.getClass().toString(), "Creating credential offer for CS-CSO info...");
+            JSONObject csoInfoCredentialOffer = CredentialUtils.createCredentialOffer(csoWallet, csoInfoCredentialDefFromLedger.getString("id"));
+            Log.i(this.getClass().toString(), String.format("Credential offer for CS-CSO info created: %s", csoInfoCredentialOffer));
+
+            Log.i(this.getClass().toString(), "Creating credential offer for CS-DSO district district info...");
+            JSONObject dsoDistrictCredentialOffer = CredentialUtils.createCredentialOffer(dsoWallet, dsoDistrictCredentialDefFromLedger.getString("id"));
+            Log.i(this.getClass().toString(), String.format("Credential offer for CS-DSO district info created: %s", dsoDistrictCredentialOffer));
+
+
+            Log.i(this.getClass().toString(), "Creating master secret for CS wallet...");
+            String csMasterSecretID = CredentialUtils.createAndSaveCSMasterSecret(csWallet);
+            Log.i(this.getClass().toString(), String.format("Master secret for CS wallet created: %s", csMasterSecretID));
+
+            // 9. Credential requests creation
+
+            Log.i(this.getClass().toString(), "Creating credential request for CS-CSO info...");
+            AnoncredsResults.ProverCreateCredentialRequestResult csoInfoCredentialRequest = CredentialUtils.createCSOInfoCredentialRequest(csWallet, csDID.getDid(), csoInfoCredentialOffer, csoInfoCredentialDefFromLedger.getJSONObject("object"), csMasterSecretID);
+            Log.i(this.getClass().toString(), String.format("Credential request for CS-CSO info created: %s", csoInfoCredentialRequest.getCredentialRequestJson()));
+
+            Log.i(this.getClass().toString(), "Creating credential request for CS-DSO district info...");
+            AnoncredsResults.ProverCreateCredentialRequestResult dsoDistrictCredentialRequest = CredentialUtils.createDSODistrictCredentialRequest(csWallet, csDID.getDid(), dsoDistrictCredentialOffer, dsoDistrictCredentialDefFromLedger.getJSONObject("object"), csMasterSecretID);
+            Log.i(this.getClass().toString(), String.format("Credential request for CS-DSO district info created: %s", dsoDistrictCredentialRequest.getCredentialRequestJson()));
+
+            // 10. Credentials creation
+
+            Log.i(this.getClass().toString(), "Creating credential for CS-CSO info...");
+            AnoncredsResults.IssuerCreateCredentialResult csoInfoCredential = CredentialUtils.createCSOInfoCredential(csoWallet, csoInfoCredentialOffer, new JSONObject(csoInfoCredentialRequest.getCredentialRequestJson()), csoDID.getDid());
+            Log.i(this.getClass().toString(), String.format("Credential for CS-CSO info created: %s", csoInfoCredential.getCredentialJson()));
+
+            Log.i(this.getClass().toString(), "Saving credential for CS-CSO info into CS wallet...");
+            WalletUtils.saveCredential(csWallet, new JSONObject(csoInfoCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(csoInfoCredential.getCredentialJson()), csoInfoCredentialDefFromLedger.getJSONObject("object"), csoInfoCredential.getRevocRegDeltaJson() != null ? new JSONObject(csoInfoCredential.getRevocRegDeltaJson()) : null);
+            Log.i(this.getClass().toString(), "Credential for CS-CSO info saved into CS wallet");
+
+            Log.i(this.getClass().toString(), "Creating credential for CS-DSO district info...");
+            AnoncredsResults.IssuerCreateCredentialResult dsoDistrictCredential = CredentialUtils.createDSODistrictCredential(dsoWallet, dsoDistrictCredentialOffer, new JSONObject(dsoDistrictCredentialRequest.getCredentialRequestJson()));
+            Log.i(this.getClass().toString(), String.format("Credential for CS-DSO district info created: %s", dsoDistrictCredential.getCredentialJson()));
+
+            Log.i(this.getClass().toString(), "Saving credential for CS-DSO district info into CS wallet...");
+            WalletUtils.saveCredential(csWallet, new JSONObject(dsoDistrictCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(dsoDistrictCredential.getCredentialJson()), dsoDistrictCredentialDefFromLedger.getJSONObject("object"), dsoDistrictCredential.getRevocRegDeltaJson() != null ? new JSONObject(dsoDistrictCredential.getRevocRegDeltaJson()) : null);
+            Log.i(this.getClass().toString(), "Credential for CS-DSO district info saved into CS wallet");
+
+            // 11. Proof requests creation
+
+            Log.i(this.getClass().toString(), "Creating CSO Info + DSO district proof request...");
+            JSONObject csoInfodsoDistrictProofRequest = ProofUtils.createCSOInfoAndDSODistrictProofRequest(csoDID.getDid(), dsoDID.getDid(), csoInfoCredentialDefFromLedger.getString("id"), dsoDistrictCredentialDefFromLedger.getString("id"));
+            Log.i(this.getClass().toString(), String.format("CSO Info + DSO district proof request created: %s", csoInfodsoDistrictProofRequest));
+
+            // 12. Proofs creation
+
+            Log.i(this.getClass().toString(), "Selecting credentials for CSO Info + DSO district proof request...");
+            JSONObject csoInfodsoDistrictProofRequestCredentials = CredentialUtils.getPredicatesForCSOInfoDSODistrictProofRequest(csWallet, csoInfodsoDistrictProofRequest);
+            Log.i(this.getClass().toString(), String.format("Credentials for CSO Info + DSO district proof request selected: %s", csoInfodsoDistrictProofRequestCredentials));
+
+            Log.i(this.getClass().toString(), "Creating proof for CSO Info + DSO district proof request...");
+            JSONObject csoInfodsoDistrictProof = ProofUtils.createProofCSOInfoDSODistrictProofRequest(
+                    csWallet,
+                    csoInfodsoDistrictProofRequest,
+                    csoInfodsoDistrictProofRequestCredentials,
+                    csMasterSecretID,
+                    csoInfoCredentialSchemaFromLedger.getString("id"),
+                    dsoDistrictCredentialSchemaFromLedger.getString("id"),
+                    csoInfoCredentialSchemaFromLedger.getJSONObject("object"),
+                    dsoDistrictCredentialSchemaFromLedger.getJSONObject("object"),
+                    csoInfoCredentialDefFromLedger.getString("id"),
+                    dsoDistrictCredentialDefFromLedger.getString("id"),
+                    csoInfoCredentialDefFromLedger.getJSONObject("object"),
+                    dsoDistrictCredentialDefFromLedger.getJSONObject("object")
+            );
+            Log.i(this.getClass().toString(), String.format("Proof for  CSO Info + DSO district proof request created: %s", csoInfodsoDistrictProof));
+
+            // 13. Proofs verification
+
+            Log.i(this.getClass().toString(), "Verifying proof for CSO Info + DSO district...");
+            boolean isCSOInfoDSODistrictProofValid = ProofUtils.verifyCSOInfoDSODistrictProof(
+                    csoInfodsoDistrictProofRequest,
+                    csoInfodsoDistrictProof,
+                    csoInfoCredentialSchemaFromLedger.getString("id"),
+                    dsoDistrictCredentialSchemaFromLedger.getString("id"),
+                    csoInfoCredentialSchemaFromLedger.getJSONObject("object"),
+                    dsoDistrictCredentialSchemaFromLedger.getJSONObject("object"),
+                    csoInfoCredentialDefFromLedger.getString("id"),
+                    dsoDistrictCredentialDefFromLedger.getString("id"),
+                    csoInfoCredentialDefFromLedger.getJSONObject("object"),
+                    dsoDistrictCredentialDefFromLedger.getJSONObject("object")
+            );
+            Log.i(this.getClass().toString(), String.format("Proof for CSO Info + DSO district verified with result: %b", isCSOInfoDSODistrictProofValid));
+
+            // 14. Pool disconnection
+
+            Log.i(this.getClass().toString(), "Closing test pool...");
+            sofiePool.close();
+            Log.i(this.getClass().toString(), "Test pool closed.");
+
+            // 15. Wallets de-initialisation
+
+            Log.i(this.getClass().toString(), "Closing EV wallet...");
+            evWallet.close();
+            Log.i(this.getClass().toString(), "EV wallet closed.");
+            Log.i(this.getClass().toString(), "Closing CSO wallet...");
+            csoWallet.close();
+            Log.i(this.getClass().toString(), "CSO wallet closed.");
+            Log.i(this.getClass().toString(), "Closing DSO wallet...");
+            dsoWallet.close();
+            Log.i(this.getClass().toString(), "DSO wallet closed.");
+            Log.i(this.getClass().toString(), "Closing CS wallet...");
+            csWallet.close();
+            Log.i(this.getClass().toString(), "CS wallet closed.");
+            Log.i(this.getClass().toString(), "Closing steward wallet...");
+            stewardWallet.close();
+            Log.i(this.getClass().toString(), "Steward wallet closed.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
 }
 

@@ -18,8 +18,8 @@ import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import android.support.v4.content.LocalBroadcastManager;
 
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -87,9 +87,6 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         setAppIsVisible(false);
-        if (mBluetoothLeService != null) {
-            mBluetoothLeService.closeGattConnection();
-        }
     }
 
 
@@ -276,6 +273,7 @@ public class MainActivity extends Activity {
                     nextStage(3);
                     sendProof();
                     nextStage(4);
+                    //closeConnection();
                 } else {
                     writeLine("Unexpected Message Received");
                 }
@@ -286,4 +284,7 @@ public class MainActivity extends Activity {
     };
 
 
+    public void closeConnection() {
+        mBluetoothLeService.cancelGattConnection();
+    }
 }

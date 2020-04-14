@@ -23,8 +23,10 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.ParcelUuid;
 import android.os.SystemClock;
-import android.support.v4.content.LocalBroadcastManager;
+//import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -157,30 +159,25 @@ public class BluetoothLeService extends Service {
                 mCommonUtils.stopTimer();
 
 
-bleHandler.post(new Runnable() {
-    @Override
-    public void run() {
-        if (!mBluetoothGatt.discoverServices()) {
-            mCommonUtils.writeLine("Failed to start discovering services!");
-        }
-    }
-});
+                bleHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        commandQueue.request(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (!mBluetoothGatt.discoverServices()) {
+                                    mCommonUtils.writeLine("Failed to start discovering services!");
+                                }
+                            }
+                        });
 
+                    }
+                });
 
-//                bleHandler.postDelayed(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        if (!serviceFound) {
-//                            restartGattStack();
-//                            Log.v(TAG, "Error Service discovery did not complete");
-//                        }
-//                    }
-//                }, 1000);
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                 mCommonUtils.writeLine("Disconnected!");
-                gatt.close();
-                Log.v(TAG, "Error Connection malfunctioning");
-
+                commandQueue.operationCompleted();
+                releaseResources();
             } else {
                 mCommonUtils.writeLine("Connection state changed.  New state: " + newState);
             }
@@ -197,28 +194,31 @@ bleHandler.post(new Runnable() {
                     serviceFound = true;
                     mCommonUtils.writeLine("Service discovery completed!");
                     mCommonUtils.stopTimer();
-                    // Save reference to each characteristic.
-                    chargingProtocolState = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(CHARGING_STATE_UUID);
-                    tx = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(TX_UUID);
-                    rx = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(RX_UUID);
 
-                    // Setup notifications on RX characteristic changes (i.e. data received).
-                    // First call setCharacteristicNotification to enable notification.
-                    if (!gatt.setCharacteristicNotification(rx, true)) {
-                        mCommonUtils.writeLine("Couldn't set notifications for RX characteristic!");
-                    }
+                    bleHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
 
-                    // Next update the RX characteristic's client descriptor to enable notifications.
-                    if (rx.getDescriptor(CLIENT_UUID) != null) {
-                        bleHandler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                safeEnableNotification(rx);
+                            // Save reference to each characteristic.
+                            chargingProtocolState = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(CHARGING_STATE_UUID);
+                            tx = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(TX_UUID);
+                            rx = mBluetoothGatt.getService(CHARGING_SERVICE_UUID).getCharacteristic(RX_UUID);
+
+                            // Setup notifications on RX characteristic changes (i.e. data received).
+                            // First call setCharacteristicNotification to enable notification.
+                            if (!gatt.setCharacteristicNotification(rx, true)) {
+                                mCommonUtils.writeLine("Couldn't set notifications for RX characteristic!");
                             }
-                        });
-                    } else {
-                        mCommonUtils.writeLine("Couldn't get RX client descriptor!");
-                    }
+
+                            // Next update the RX characteristic's client descriptor to enable notifications.
+                            if (rx.getDescriptor(CLIENT_UUID) != null) {
+                                safeEnableNotification(rx);
+                            } else {
+                                mCommonUtils.writeLine("Couldn't get RX client descriptor!");
+                            }
+                        }
+                    },100);
+
 
                 } else {
                     mCommonUtils.writeLine("Service discovery failed with status: " + status);
@@ -226,7 +226,8 @@ bleHandler.post(new Runnable() {
             } catch (Exception e) {
                 e.printStackTrace();
                 Log.v(TAG, "Error Service discovery malfunctioning");
-                restartGattStack();
+            } finally {
+                commandQueue.operationCompleted();
             }
         }
 
@@ -245,8 +246,6 @@ bleHandler.post(new Runnable() {
                         String arxMessage = rxMessage.substring(0, rxMessage.length() - 1);
                         mCommonUtils.writeLine("wth: |" + arxMessage + "|");
                         mCommonUtils.stopTimer();
-                        Log.v(TAG, "Received last chunk of did: " + System.currentTimeMillis());
-
 
                         int presetStage = chargingProtocolState.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
                         broadcastUpdate(RX_MSG_RECVD, presetStage, arxMessage);
@@ -316,6 +315,8 @@ bleHandler.post(new Runnable() {
         if (mBluetoothGatt == null || bleCharacteristic == null) {
             return false;
         }
+
+        // enable notification in server by default?
         commandQueue.request(new Runnable() {
             @Override
             public void run() {
@@ -435,24 +436,29 @@ bleHandler.post(new Runnable() {
     public void releaseResources() {
         bleOperationHandlerThread.quitSafely();
 
-        if (mBluetoothGatt == null) {
-            return;
+        if (mBluetoothGatt != null) {
+            // For better reliability be careful to disconnect and close the connection.
+            //mBluetoothGatt.disconnect();
+            mBluetoothGatt.close();
         }
-
-        // For better reliability be careful to disconnect and close the connection.
-        //mBluetoothGatt.close();
-        mBluetoothGatt.disconnect();
-        mBluetoothGatt.close();
 
         mBluetoothGatt = null;
         tx = null;
         rx = null;
+        chargingProtocolState = null;
     }
 
-    public void closeGattConnection() {
-        if(mBluetoothGatt != null) {
-            mBluetoothGatt.close();
-        }
+    public void cancelGattConnection() {
+        Log.v(TAG, "cancel requested");
+        commandQueue.request(new Runnable() {
+            @Override
+            public void run() {
+                if(mBluetoothGatt != null) {
+                    Log.v(TAG, "cancel called");
+                    mBluetoothGatt.disconnect();
+                }
+            }
+        });
     }
 
     private final IBinder mBinder = new LocalBinder();
@@ -531,19 +537,6 @@ bleHandler.post(new Runnable() {
 
 //-------------------------------------------------------------------------------------------------
 // BLE service related code
-
-    private void restartGattStack() {
-        serviceFound = false;
-        if(mBluetoothGatt != null) {
-            //mBluetoothGatt.disconnect();
-        }
-
-//        mBluetoothGatt.close();
-        mBluetoothGatt = null;
-        tx = null;
-        rx = null;
-        chargingProtocolState = null;
-    }
 
 
 }
