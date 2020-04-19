@@ -34,6 +34,6 @@ public class CommonUtils {
             normalizedText = text;
         }
 
-        Log.d(TAG, normalizedText);
+        Log.i(TAG, normalizedText);
     }
 }

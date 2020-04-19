@@ -61,7 +61,7 @@ public class CredentialsSearch extends IndyJava.API implements AutoCloseable {
 	 * @param wallet 	 A wallet
 	 * @param queryJson Wql style filter for credentials searching based on tags.
 	 *         where wql query: indy-sdk/doc/design/011-wallet-query-language/README.md
-	 * 	 * @return CredentialsSearch to fetch method
+	 * @return CredentialsSearch to fetch method
 	 * @throws IndyException Thrown if a call to the underlying SDK fails.
 	 */
 	public static CompletableFuture<CredentialsSearch> open(

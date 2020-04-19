@@ -17,6 +17,7 @@
 package io.github.webbluetoothcg.bletestperipheral;
 
 import android.app.Activity;
+import android.app.Fragment;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -296,12 +297,13 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                 .setConnectable(true)
                 .build();
         mAdvData = new AdvertiseData.Builder()
-                .setIncludeTxPowerLevel(true)
                 .addServiceUuid(mCurrentServiceFragment.getServiceUUID())
                 .build();
+
         mAdvScanResponse = new AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
-                .build();
+            .setIncludeDeviceName(true)
+            .build();
+
     }
 
     @Override

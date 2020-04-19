@@ -6,10 +6,6 @@ import java.util.Map;
 
 import com.sun.jna.*;
 import com.sun.jna.ptr.PointerByReference;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import static com.sun.jna.Native.detach;
 
 public abstract class LibIndy {
@@ -257,9 +253,6 @@ public abstract class LibIndy {
 
 		api = Native.loadLibrary(file.getAbsolutePath(), API.class, options);
 		initLogger();
-		try {
-			setRuntimeConfig(new JSONObject().put("collect_backtrace", true).toString());
-		} catch (JSONException ignored) {}
 	}
 
 	/**
@@ -271,9 +264,6 @@ public abstract class LibIndy {
 
 		api = Native.loadLibrary(LIBRARY_NAME, API.class, options);
 		initLogger();
-		try {
-			setRuntimeConfig(new JSONObject().put("collect_backtrace", true).toString());
-		} catch (JSONException ignored) {}
 	}
 
 	/**
@@ -303,7 +293,7 @@ public abstract class LibIndy {
 			public void callback(Pointer context, int level, String target, String message, String module_path, String file, int line) {
 				detach(false);
 
-				org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(String.format("%s.native.%s - %s %s %s %d", LibIndy.class.getName(), target.replace("::", "."), target, message, file, line));
+				org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(String.format("%s.native.%s", LibIndy.class.getName(), target.replace("::", ".")));
 
 				String logMessage = String.format("%s:%d | %s", file, line, message);
 

@@ -23,6 +23,9 @@ public final class PoolUtils {
 
     private PoolUtils() {}
 
+    /**
+     * @throws IndyException
+     */
     public static void createSOFIEPoolConfig() throws IndyException {
         try {
             Pool.createPoolLedgerConfig(PoolUtils.POOL_NAME, PoolUtils.POOL_CONFIG.toString()).get();
@@ -32,6 +35,10 @@ public final class PoolUtils {
         } catch (ExecutionException ignored) {}         //Config file already exists
     }
 
+    /**
+     * @return the handle to the SOFIE Indy pool.
+     * @throws IndyException
+     */
     public static Pool connectToSOFIEPool() throws IndyException {
         Pool pool = null;
         try {

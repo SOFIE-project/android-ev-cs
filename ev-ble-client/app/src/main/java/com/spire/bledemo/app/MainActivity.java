@@ -39,16 +39,6 @@ public class MainActivity extends Activity {
     private TextView mCsDetails;
     private TextView input;
 
-    private static boolean appIsVisible = false;
-
-    public static boolean isAppIsVisible() {
-        return appIsVisible;
-    }
-
-    public static void setAppIsVisible(boolean appIsVisible) {
-        MainActivity.appIsVisible = appIsVisible;
-    }
-
 
     private IndyService mIndyService;
     private BluetoothLeService mBluetoothLeService;
@@ -65,28 +55,13 @@ public class MainActivity extends Activity {
         input = (EditText) findViewById(R.id.input);
         mCsDetails = findViewById(R.id.csDetails);
 
-        mIndyService = new IndyService(getApplicationContext());
         LocalBroadcastManager.getInstance(this).registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
-        bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
-    }
+        bindService(gattServiceIntent, mBLEServiceConnection, BIND_AUTO_CREATE);
 
-
-    // OnResume, called right before UI is displayed.  Start the BTLE connection.
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Scan for all BTLE devices.
-        // The first one with the UART service will be chosen--see the code in the scanCallback.
-        setAppIsVisible(true);
-    }
-
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        setAppIsVisible(false);
+        Intent indyServiceIntent = new Intent(this, IndyService.class);
+        bindService(indyServiceIntent, mIndyServiceConnection, BIND_AUTO_CREATE);
     }
 
 
@@ -97,7 +72,7 @@ public class MainActivity extends Activity {
     }
 
     // Code to manage Service lifecycle.
-    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+    private final ServiceConnection mBLEServiceConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
@@ -106,13 +81,28 @@ public class MainActivity extends Activity {
                 Log.e(TAG, "Unable to initialize Bluetooth");
                 finish();
             }
-            writeLine("Scanning for devices...");
-            mBluetoothLeService.startScan();
+            //writeLine("Scanning for devices...");
+            //mBluetoothLeService.startScan();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             mBluetoothLeService = null;
+        }
+    };
+
+    private final ServiceConnection mIndyServiceConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mIndyService = ((IndyService.LocalBinder) service).getService();
+            mIndyService.initialize();
+            //writeLine("Indy Initialized");
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mIndyService = null;
         }
     };
 
@@ -143,7 +133,7 @@ public class MainActivity extends Activity {
 // EV - CS communication message building functions
 
     public void sendDID() {
-        String message = mIndyService.createEVdid();
+        String message = mIndyService.createEVdidAndCSOProofRequest();
         mBluetoothLeService.write(message);
     }
 
@@ -158,9 +148,10 @@ public class MainActivity extends Activity {
 
     //Sends the proof  from file via BLE
     private void sendProof() {
-        mIndyService.createProof();
+        String msg = mIndyService.createErChargingProof();
+        mBluetoothLeService.write(msg);
 
-        try {
+/*        try {
             InputStream iS = getAssets().open("proof_example.json");
             BufferedReader reader = new BufferedReader(new InputStreamReader(iS));
 
@@ -177,8 +168,7 @@ public class MainActivity extends Activity {
             iS.close();
         } catch (IOException ex) {
             writeLine("Unable to open asset.");
-            return;
-        }
+        }*/
     }
 
 
@@ -223,6 +213,7 @@ public class MainActivity extends Activity {
 
     private static IntentFilter makeGattUpdateIntentFilter() {
         final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(IndyService.ACTION_INDY_INITIALIZED);
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
@@ -244,7 +235,11 @@ public class MainActivity extends Activity {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
 
-            if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+            if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
+                writeLine("Indy Initialized");
+                writeLine("Scanning for devices...");
+                mBluetoothLeService.startScan();
+            } else if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
                 writeLine("Connected");
                 invalidateOptionsMenu();
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
@@ -264,12 +259,12 @@ public class MainActivity extends Activity {
                 String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
                 int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, 0);
                 if (stage == 0) {
-                    mIndyService.parseCsDid1(msg);
+                    mIndyService.parseAndSaveCsDid1(msg);
                     nextStage(1);
                     sendDID();
                     nextStage(2);
                 } else if (stage == 2) {
-                    mIndyService.parseCSdid2AndCSOownershipProof(msg);
+                    mIndyService.parseCSDid2CSOProofAndEVCertificateProofRequest(msg);
                     nextStage(3);
                     sendProof();
                     nextStage(4);

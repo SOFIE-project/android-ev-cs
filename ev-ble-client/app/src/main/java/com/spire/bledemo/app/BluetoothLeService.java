@@ -76,18 +76,18 @@ public class BluetoothLeService extends Service {
     // Creating scanner settings for finding the CS service
     private List<ScanFilter> targetServices;
 
-    private volatile boolean  serviceFound = false;
-
     private void createScanFilter() {
         targetServices = new ArrayList<>();
         ScanFilter filter = new ScanFilter.Builder()
                 .setServiceUuid(new ParcelUuid(CHARGING_SERVICE_UUID))
                 .build();
+
         targetServices.add(filter);
     }
 
     private ScanSettings scanSettings = new ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+//           .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)  // Required for using Nokia 8.1 as EV
             .build();
 
     private BluetoothLeScanner mbleScanner;
@@ -124,7 +124,8 @@ public class BluetoothLeService extends Service {
             mCommonUtils.writeLine("Barrier found!");
             mCommonUtils.stopTimer();
             peripheralDevice = result.getDevice();
-            mBluetoothGatt = peripheralDevice.connectGatt(getApplicationContext(), false, callback, BluetoothDevice.TRANSPORT_LE, BluetoothDevice.PHY_LE_2M);
+            mBluetoothGatt = peripheralDevice.connectGatt(getApplicationContext(), false, callback, BluetoothDevice.TRANSPORT_LE);
+                    //BluetoothDevice.PHY_LE_2M);
         }
     };
 
@@ -191,7 +192,6 @@ public class BluetoothLeService extends Service {
             super.onServicesDiscovered(gatt, status);
             try {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    serviceFound = true;
                     mCommonUtils.writeLine("Service discovery completed!");
                     mCommonUtils.stopTimer();
 
@@ -217,7 +217,7 @@ public class BluetoothLeService extends Service {
                                 mCommonUtils.writeLine("Couldn't get RX client descriptor!");
                             }
                         }
-                    },100);
+                    },1);
 
 
                 } else {

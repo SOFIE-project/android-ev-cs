@@ -1210,7 +1210,7 @@ public class Anoncreds extends IndyJava.API {
 	 *     {
 	 *         "name": attribute name, (case insensitive and ignore spaces)
 	 *         "p_type": predicate type (">=", ">", "<=", "<")
-	 *       "p_value": predicate value
+	 *         "p_value": predicate value
 	 *         "restrictions": Optional<wql query>, // see below
 	 *         "non_revoked": Optional<<non_revoc_interval>>, // see below,
 	 *                        // If specified prover must proof non-revocation
