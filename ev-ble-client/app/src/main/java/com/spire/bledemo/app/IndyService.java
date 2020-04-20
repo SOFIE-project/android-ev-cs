@@ -129,48 +129,6 @@ public class IndyService extends Service {
     }
 
 
-    // CS function
-    public String createCSDid2CSOProofAndEVCertificateProofRequest() {
-        String message = "error";
-        try {
-
-            // 12. Proofs creation
-
-            Log.i(this.getClass().toString(), "Creating proof for CSO Info + DSO district proof request...");
-            JSONObject csoInfodsoDistrictProofRequestCredentialsRevealed = CredentialUtils.getPredicatesForCSOInfoDSODistrictProofRequest(csWallet, csoInfodsoDistrictProofRequest, true);
-
-            JSONObject csoInfodsoDistrictProofRevealing = ProofUtils.createProofCSOInfoDSODistrictProofRequest(
-                    csWallet,
-                    csoInfodsoDistrictProofRequest,
-                    csoInfodsoDistrictProofRequestCredentialsRevealed,
-                    csMasterSecretID,
-                    csoInfoCredentialSchemaFromLedger.getString("id"),
-                    dsoDistrictCredentialSchemaFromLedger.getString("id"),
-                    csoInfoCredentialSchemaFromLedger.getJSONObject("object"),
-                    dsoDistrictCredentialSchemaFromLedger.getJSONObject("object"),
-                    csoInfoCredentialDefFromLedger.getString("id"),
-                    dsoDistrictCredentialDefFromLedger.getString("id"),
-                    csoInfoCredentialDefFromLedger.getJSONObject("object"),
-                    dsoDistrictCredentialDefFromLedger.getJSONObject("object")
-            );
-            Log.i(this.getClass().toString(), String.format("Proof for CSO Info + DSO district proof request created: %s", csoInfodsoDistrictProofRevealing.toString().length()));
-
-            mCommonUtils.stopTimer();
-
-
-            Log.i(this.getClass().toString(), "Creating EV charging credential proof request...");
-            erChargingProofRequest = ProofUtils.createERChargingProofRequest(erDID.getDid(), erChargingCredentialDefFromLedger.getString("id"));
-            Log.i(this.getClass().toString(), String.format("EV charging credential proof request created: %s", erChargingProofRequest.toString().length()));
-
-            mCommonUtils.stopTimer();
-
-            message = csDID.getDid() + "|" + csoInfodsoDistrictProofRevealing.toString() + "|" + erChargingProofRequest.toString();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return message;
-    }
-
     public void parseCSDid2CSOProofAndEVCertificateProofRequest(String payload) {
 //        unmarshall did, proof and proof request ---- gson?
 //        save did
@@ -181,9 +139,9 @@ public class IndyService extends Service {
 //        send proof
 
         try {
-            String cs2Did = payload.split("|")[0];
-            String csoInfodsoDistrictProofRevealingString = payload.split("|")[1];
-            String erChargingProofRequestString = payload.split("|")[2];
+            String cs2Did = payload.split("\\|")[0];
+            String csoInfodsoDistrictProofRevealingString = payload.split("\\|")[1];
+            String erChargingProofRequestString = payload.split("\\|")[2];
 
             erChargingProofRequest = new JSONObject(erChargingProofRequestString);
             JSONObject csoInfodsoDistrictProofRevealing = new JSONObject(csoInfodsoDistrictProofRevealingString);
@@ -242,32 +200,6 @@ public class IndyService extends Service {
         return proof;
     }
 
-
-    public boolean verifyErChargingProof(String erProofString) {
-
-        boolean isERChargingProofRevealingValid = false;
-        try {
-            JSONObject erChargingProofRevealing = new JSONObject(erProofString);
-
-            Log.i(this.getClass().toString(), "Verifying proof for ER charging credential...");
-             isERChargingProofRevealingValid = ProofUtils.verifyERChargingProofCrypto(
-                    erChargingProofRequest,
-                    erChargingProofRevealing,
-                    erChargingCredentialSchemaFromLedger.getString("id"),
-                    erChargingCredentialSchemaFromLedger.getJSONObject("object"),
-                    erChargingCredentialDefFromLedger.getString("id"),
-                    erChargingCredentialDefFromLedger.getJSONObject("object")
-            );
-            Log.i(this.getClass().toString(), String.format("Proof for ER charging credential verified with result: %b", isERChargingProofRevealingValid));
-            Log.i(this.getClass().toString(), String.format("Proof for ER charging credential values validated with result: %b", ProofUtils.verifyERChargingProofValues(erChargingProofRevealing, 1)));
-
-            mCommonUtils.stopTimer();
-        } catch (JSONException | IndyException e) {
-            e.printStackTrace();
-        }
-
-        return isERChargingProofRevealingValid;
-    }
 
     public void sendchargeStartMessage() {
 

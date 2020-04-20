@@ -22,7 +22,11 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.ParcelUuid;
 import android.os.SystemClock;
 import android.util.Log;
@@ -50,6 +54,7 @@ import java.util.Arrays;
 import java.util.UUID;
 
 import static android.content.ContentValues.TAG;
+import static android.content.Context.BIND_AUTO_CREATE;
 
 
 public class BatteryServiceFragment extends ServiceFragment {
@@ -184,14 +189,35 @@ public class BatteryServiceFragment extends ServiceFragment {
       mTxBuffer = new MessageBuffer(mtuLength);
       mRxBuffer = new MessageBuffer(mtuLength);
 
-      mIndyService = new IndyService(getContext());
       mCommonUtils = new CommonUtils();
+
+      // TODO: convert fragment to activity
+      //Intent indyServiceIntent = new Intent(this, IndyService.class);
+      //bindService(indyServiceIntent, mIndyServiceConnection, BIND_AUTO_CREATE);
+
+      mIndyService = new IndyService();
+      mIndyService.initialize(getContext());
 
     } catch (ClassCastException e) {
       throw new ClassCastException(activity.toString()
           + " must implement ServiceFragmentDelegate");
     }
   }
+
+  private final ServiceConnection mIndyServiceConnection = new ServiceConnection() {
+
+    @Override
+    public void onServiceConnected(ComponentName componentName, IBinder service) {
+      mIndyService = ((IndyService.LocalBinder) service).getService();
+      //mIndyService.initialize();
+      //writeLine("Indy Initialized");
+    }
+
+    @Override
+    public void onServiceDisconnected(ComponentName componentName) {
+      mIndyService = null;
+    }
+  };
 
   @Override
   public void onDetach() {
@@ -288,52 +314,60 @@ public class BatteryServiceFragment extends ServiceFragment {
 
   public void doPostCharacteristicWriteOperation(BluetoothGattCharacteristic characteristic) {
 
-     String postWriteMsg = null;
-
     // If Value written on state indicator
     if (characteristic.getUuid().equals(CHARGING_STATE_UUID)) {
       int newState = mBatteryLevelCharacteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-      postWriteMsg = "Stage: " + newState;
+      writeLine("Stage: "+ newState);
       handleEvent(newState);
 
     } else {
      // Value is written to TX characteristic
       mTxBuffer.add(mTXCharacteristics.getStringValue(0));
 
-      if (mTXCharacteristics.getStringValue(0).endsWith("ä")) {
-        String s = mTxBuffer.extract();
-        postWriteMsg = s.substring(0,s.length()-1);
-      }
+//      if (mTXCharacteristics.getStringValue(0).endsWith("ä")) {
+//        String s = mTxBuffer.extract();
+//        String postWriteMsg = s.substring(0,s.length()-1);
+//        writeLine(postWriteMsg);
+//      }
     }
+  }
 
-    if( postWriteMsg != null) {
-      writeLine(postWriteMsg);
-    }
+  public String getBLEMessage() {
+    String s = mTxBuffer.extract();
+    String bleMessage = s.substring(0,s.length()-1);
+    writeLine(bleMessage);
+    return bleMessage;
   }
 
   public void handleEvent(int newState) {
     switch (newState) {
       case 0: // write did to rx
-        String tempDID = mIndyService.generateTempDID1();
+        String tempDID = mIndyService.createCsDid1();
         Log.v(TAG, "Started sending did: " + System.currentTimeMillis());
         writeLongLocalCharacteristic(mRXCharacteristics, tempDID);
         break;
 
-      case 1: // verify the proof request validity or throw error, reset state and disconnect client
-        mIndyService.checkProofRequest();
+      case 1:
         break;
 
-      case 2: // write real DID
-        String tempDID2 = mIndyService.generateDID2erProofAndProofRequestForEV();
+      case 2:
+        // verify the proof request validity or throw error, reset state and disconnect client
+        mIndyService.parseEVDIDAndCSOProofRequest(getBLEMessage());
+
+        // write real DID
+        String tempDID2 = mIndyService.createCSDid2CSOProofAndEVCertificateProofRequest();
         Log.v(TAG, "Started real did: " + System.currentTimeMillis());
         writeLongLocalCharacteristic(mRXCharacteristics, tempDID2);
         break;
 
-      case 3: // verify EV customer proof
-        mIndyService.checkProofRequest();
+      case 3:
         break;
 
-      case 4: // print connection complete
+      case 4:
+        // verify EV customer proof
+        mIndyService.verifyErChargingProof(getBLEMessage());
+
+        // print connection complete
         mHandshakeState.setText("Handshake Complete");
         mHandshakeState.setBackgroundColor(getResources().getColor(R.color.accent));
         break;
