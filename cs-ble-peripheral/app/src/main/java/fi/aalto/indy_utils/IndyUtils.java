@@ -36,8 +36,7 @@ public final class IndyUtils {
         }
     }
 
-    private IndyUtils() {
-    }
+    private IndyUtils() {}
 
     /**
      * Call this before calling any other Indy-related method.

@@ -26,7 +26,7 @@ public final class CredentialDefinitionUtils {
 
     private static SharedPreferences storage;
 
-    CredentialDefinitionUtils() {}
+    private CredentialDefinitionUtils() {}
 
     static void initWithAppContext(Context context) {
         CredentialDefinitionUtils.storage = context.getSharedPreferences("credential-defs", Context.MODE_PRIVATE);

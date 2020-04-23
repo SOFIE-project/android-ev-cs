@@ -65,6 +65,12 @@ public class MainActivity extends Activity {
     }
 
 
+    // Temporary function to restart cycle
+    public void sendClick(View v) {
+        nextStage(0);
+    }
+
+
     @Override
     protected void onDestroy() {
         super.onDestroy();

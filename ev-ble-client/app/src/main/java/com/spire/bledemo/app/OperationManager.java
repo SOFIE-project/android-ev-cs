@@ -6,16 +6,16 @@ import java.util.Queue;
 public class OperationManager {
     private Queue<Runnable> operations = new LinkedList<Runnable>();
 
-    private Runnable currentOp;
+    private Runnable currentOp = null;
 
 
     public synchronized void request(Runnable operation) {
         operations.add(operation);
         if( currentOp == null ) {
             currentOp = operations.poll();
+            currentOp.run();
         }
 
-        currentOp.run();
     }
 
     public synchronized void operationCompleted() {
@@ -25,12 +25,6 @@ public class OperationManager {
             currentOp.run();
         }
 
-    }
-
-    public synchronized void nudge() {
-        if(currentOp != null) {
-            currentOp.run();
-        }
     }
 
 }

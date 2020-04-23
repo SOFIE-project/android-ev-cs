@@ -23,7 +23,7 @@ public class MessageBuffer {
     public String extract() {
         StringBuilder queueBuffer = new StringBuilder();
         while(!messages.isEmpty()){
-            queueBuffer.append((messages.poll()));
+            queueBuffer.append(messages.poll());
         }
         return queueBuffer.toString();
     }

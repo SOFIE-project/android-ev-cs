@@ -320,7 +320,7 @@ public class BatteryServiceFragment extends ServiceFragment {
       writeLine("Stage: "+ newState);
       handleEvent(newState);
 
-    } else {
+    } else if (characteristic.getUuid().equals(TX_UUID)){
      // Value is written to TX characteristic
       mTxBuffer.add(mTXCharacteristics.getStringValue(0));
 
