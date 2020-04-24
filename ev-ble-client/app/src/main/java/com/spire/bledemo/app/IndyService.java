@@ -234,27 +234,17 @@ public class IndyService extends Service {
 
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
- //       intent.putExtra(CURRENT_STAGE, stage);
-
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     public void initialize() {
-//        mMainContext = mainContext;
         mCommonUtils = new CommonUtils();
 
         indyOperationHandlerThread.start();
         indyHandler = new Handler(indyOperationHandlerThread.getLooper());
 
-//        indyHandler.post(new Runnable() {
-//            @Override
-//            public void run() {
-//                initializeIndy();
-//            }
-//        });
 
         new IndyInitialisationTask().execute();
-
     }
     /*
     Offline tasks for Indy: intialize, create did and credentials, close wallets and connections

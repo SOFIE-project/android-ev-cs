@@ -21,15 +21,9 @@ import android.widget.TextView;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 
 import static android.content.ContentValues.TAG;
-import static com.spire.bledemo.app.BluetoothLeService.BLE_ERROR;
-import static com.spire.bledemo.app.BluetoothLeService.CS_CONNECTED;
-import static com.spire.bledemo.app.BluetoothLeService.RX_MSG_RECVD;
+
 
 public class MainActivity extends Activity {
 
@@ -65,11 +59,10 @@ public class MainActivity extends Activity {
     }
 
 
-    // Temporary function to restart cycle
-    public void sendClick(View v) {
+    // Start EV charging manually
+    public void startCharging(View v) {
         nextStage(0);
     }
-
 
     @Override
     protected void onDestroy() {
@@ -87,8 +80,6 @@ public class MainActivity extends Activity {
                 Log.e(TAG, "Unable to initialize Bluetooth");
                 finish();
             }
-            //writeLine("Scanning for devices...");
-            //mBluetoothLeService.startScan();
         }
 
         @Override
@@ -103,7 +94,6 @@ public class MainActivity extends Activity {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             mIndyService = ((IndyService.LocalBinder) service).getService();
             mIndyService.initialize();
-            //writeLine("Indy Initialized");
         }
 
         @Override
@@ -224,9 +214,9 @@ public class MainActivity extends Activity {
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
         intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
-        intentFilter.addAction(CS_CONNECTED);
-        intentFilter.addAction(RX_MSG_RECVD);
-        intentFilter.addAction(BLE_ERROR);
+        intentFilter.addAction(BluetoothLeService.CS_CONNECTED);
+        intentFilter.addAction(BluetoothLeService.RX_MSG_RECVD);
+        intentFilter.addAction(BluetoothLeService.BLE_ERROR);
         return intentFilter;
     }
 
@@ -252,7 +242,7 @@ public class MainActivity extends Activity {
                 writeLine("Disconnected!");
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 writeLine("Service Discovery Completed");
-            } else if (CS_CONNECTED.equals(action)) {
+            } else if (BluetoothLeService.CS_CONNECTED.equals(action)) {
 
                 String deviceName = intent.getStringExtra(BluetoothLeService.DEVICE_NAME);
                 String deviceAddress = intent.getStringExtra(BluetoothLeService.DEVICE_ADDRESS);
@@ -261,7 +251,7 @@ public class MainActivity extends Activity {
                 ((RelativeLayout) mCsDetails.getParent()).setBackgroundColor(getResources().getColor(android.R.color.holo_green_light));
                 nextStage(0);
 
-            } else if (RX_MSG_RECVD.equals(action)) {
+            } else if (BluetoothLeService.RX_MSG_RECVD.equals(action)) {
                 String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
                 int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, 0);
                 if (stage == 0) {
@@ -278,7 +268,7 @@ public class MainActivity extends Activity {
                 } else {
                     writeLine("Unexpected Message Received");
                 }
-            } else if (BLE_ERROR.equals(action)) {
+            } else if (BluetoothLeService.BLE_ERROR.equals(action)) {
                 //reattachService();
             }
         }
