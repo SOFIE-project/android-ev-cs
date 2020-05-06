@@ -16,14 +16,11 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
-import android.nfc.Tag;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.ParcelUuid;
-import android.os.SystemClock;
-//import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -328,7 +325,8 @@ public class BluetoothLeService extends Service {
         });
 
 
-/*        commandQueue.request(new Runnable() {
+        // does it matter time wise??
+        commandQueue.request(new Runnable() {
             @Override
             public void run() {
                 //  update the characteristic's client descriptor to write client name.
@@ -340,7 +338,7 @@ public class BluetoothLeService extends Service {
                     e.printStackTrace();
                 }
             }
-        });*/
+        });
 
         commandQueue.request(new Runnable() {
             @Override
@@ -356,7 +354,7 @@ public class BluetoothLeService extends Service {
         int start = 0;
         payload = payload + "ä";
 
-        mCommonUtils.writeLine("Sent: " + payload);
+        mCommonUtils.writeLine("Stage: " + payload);
 
         while (start < payload.length()) {
             int end = Math.min(payload.length(), start + mtuLength);
@@ -522,6 +520,13 @@ public class BluetoothLeService extends Service {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
+    public Long[] getTimeList() {
+        return mCommonUtils.getTimeList();
+    }
+
+    public void clearTimeList() {
+        mCommonUtils.clearTimeList();
+    }
 
 //        public byte[] delimitLongData(byte[] data) {
 //        ByteArrayOutputStream delimitedStream = null;

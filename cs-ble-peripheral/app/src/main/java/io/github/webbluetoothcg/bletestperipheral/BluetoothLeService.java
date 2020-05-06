@@ -16,8 +16,7 @@
 
 package io.github.webbluetoothcg.bletestperipheral;
 
-import android.app.Activity;
-import android.app.Fragment;
+import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -33,40 +32,67 @@ import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
+import android.os.Binder;
+import android.os.IBinder;
+import android.os.ParcelUuid;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
-import android.view.WindowManager;
-import android.widget.EditText;
-import android.widget.TextView;
-import android.widget.Toast;
 
-import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Method;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.UUID;
 
-import io.github.webbluetoothcg.bletestperipheral.ServiceFragment.ServiceFragmentDelegate;
+import static android.content.ContentValues.TAG;
 
-public class Peripheral extends Activity implements ServiceFragmentDelegate {
+
+public class BluetoothLeService extends Service {
 
     private static final int REQUEST_ENABLE_BT = 1;
-    private static final String TAG = Peripheral.class.getCanonicalName();
-    private static final String CURRENT_FRAGMENT_TAG = "CURRENT_FRAGMENT";
+
+    private static final int INITIAL_BATTERY_LEVEL = 0;
+  private static final int BATTERY_LEVEL_MAX = 100;
+  private static final String BATTERY_LEVEL_DESCRIPTION = "The current charge level of a " +
+      "battery. 100% represents fully charged while 0% represents fully discharged.";
+
 
     private static final UUID CHARACTERISTIC_USER_DESCRIPTION_UUID = UUID
             .fromString("00002901-0000-1000-8000-00805f9b34fb");
     private static final UUID CLIENT_CHARACTERISTIC_CONFIGURATION_UUID = UUID
             .fromString("00002902-0000-1000-8000-00805f9b34fb");
 
+    // UUID for advertising charging service
+  public static UUID CHARGING_SERVICE_UUID = UUID.fromString("D0940001-5FDC-478D-B700-029B574073AB");
+  public static UUID CHARGING_STATE_UUID =  UUID.fromString("D0940002-5FDC-478D-B700-029B574073AB");
 
-    private TextView mAdvStatus;
-    private TextView mConnectionStatus;
-    private ServiceFragment mCurrentServiceFragment;
-    private BluetoothGattService mBluetoothGattService;
+  // UART characteristics
+  public static UUID TX_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
+  public static UUID RX_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
+
+
+  private final int mtuLength = 510;
+  private MessageBuffer mTxBuffer;
+  private MessageBuffer mRxBuffer;
+
+  private CommonUtils mCommonUtils;
+
+
+    // Event Constants
+
+    public static final String EV_CONNECTED = "io.github.webbluetoothcg.bletestperipheral.EV_CONNECTED";
+    public static final String TX_MSG_RECVD = "io.github.webbluetoothcg.bletestperipheral.TX_MSG_RECVD";
+    public static final String BROADCASTING = "io.github.webbluetoothcg.bletestperipheral.BROADCASTING";
+    public static final String BLE_ERROR = "io.github.webbluetoothcg.bletestperipheral.BLE_ERROR";
+
+    public final static String EXTRA_DATA =
+            "io.github.webbluetoothcg.bletestperipheral.EXTRA_DATA";
+    public final static String CURRENT_STAGE =
+            "io.github.webbluetoothcg.bletestperipheral.CURRENT_STAGE";
+
+
+
+    // BLE gatt server
+  private BluetoothGattService mBluetoothGattService;
     private HashSet<BluetoothDevice> mBluetoothDevices;
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
@@ -74,6 +100,13 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
     private AdvertiseData mAdvScanResponse;
     private AdvertiseSettings mAdvSettings;
     private BluetoothLeAdvertiser mAdvertiser;
+    private BluetoothGattServer mGattServer;
+
+
+    // Service lifecycle
+    private final IBinder mBinder = new LocalBinder();
+
+
     private final AdvertiseCallback mAdvCallback = new AdvertiseCallback() {
         @Override
         public void onStartFailure(int errorCode) {
@@ -101,18 +134,36 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                     statusText = R.string.status_notAdvertising;
                     Log.wtf(TAG, "Unhandled error: " + errorCode);
             }
-            mAdvStatus.setText(statusText);
+            broadcastUpdate(BLE_ERROR, null,null);
         }
 
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
             Log.v(TAG, "Broadcasting");
-            mAdvStatus.setText(R.string.status_advertising);
+            broadcastUpdate(BROADCASTING, null, null);
+
         }
     };
 
-    private BluetoothGattServer mGattServer;
+
+
+
+    private void broadcastUpdate(final String action, Integer stage, String msg) {
+        final Intent intent = new Intent(action);
+
+        if(stage != null) {
+            intent.putExtra(CURRENT_STAGE, stage);
+        }
+
+        if (msg != null) {
+            intent.putExtra(EXTRA_DATA, msg);
+        }
+
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
+
+
     private final BluetoothGattServerCallback mGattServerCallback = new BluetoothGattServerCallback() {
 
         @Override
@@ -123,9 +174,7 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
 
                     if (mBluetoothManager.getConnectedDevices(BluetoothGattServer.GATT).size() == 1) {
                         mBluetoothDevices.add(device);
-                        updateConnectedDevicesStatus();
-                        // experimental
-                        //mGattServer.connect(device, false);
+                        broadcastUpdate(EV_CONNECTED, null, device.getAddress());
                         Log.v(TAG, "Connected to device: " + device.getAddress());
                     } else {
                         mGattServer.cancelConnection(device);
@@ -134,22 +183,16 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                 } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                     //mGattServer.cancelConnection(device);
                     mBluetoothDevices.remove(device);
-                    updateConnectedDevicesStatus();
+                    broadcastUpdate(BROADCASTING, null, null);
                     Log.v(TAG, "Disconnected from device");
                 }
             } else {
                 mBluetoothDevices.remove(device);
-                updateConnectedDevicesStatus();
+                broadcastUpdate(BLE_ERROR, null, null);
                 // There are too many gatt errors (some of them not even in the documentation) so we just
                 // show the error to the user.
                 final String errorMessage = getString(R.string.status_errorWhenConnecting) + ": " + status;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(Peripheral.this, errorMessage, Toast.LENGTH_LONG).show();
-                    }
-                });
-                Log.e(TAG, "Error when connecting: " + status);
+                Log.e(TAG, errorMessage);
             }
         }
 
@@ -173,7 +216,7 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
         @Override
         public void onNotificationSent(BluetoothDevice device, int status) {
             super.onNotificationSent(device, status);
-            mCurrentServiceFragment.notificationSent(device, status);
+            notificationSent(device, status);
             Log.v(TAG, "Notification sent. Status: " + status);
         }
 
@@ -184,7 +227,7 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
             super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite,
                     responseNeeded, offset, value);
             Log.v(TAG, "Characteristic Write request: " + Arrays.toString(value));
-            int status = mCurrentServiceFragment.writeCharacteristic(characteristic, offset, value);
+            int status = writeCharacteristic(characteristic, offset, value);
             if (responseNeeded) {
                 mGattServer.sendResponse(device, requestId, status,
                         /* No need to respond with an offset */ 0,
@@ -229,17 +272,17 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                     status = BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH;
                 } else if (Arrays.equals(value, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
                     status = BluetoothGatt.GATT_SUCCESS;
-                    mCurrentServiceFragment.notificationsDisabled(characteristic);
+//                    mCurrentServiceFragment.notificationsDisabled(characteristic);
                     descriptor.setValue(value);
                 } else if (supportsNotifications &&
                         Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) {
                     status = BluetoothGatt.GATT_SUCCESS;
-                    mCurrentServiceFragment.notificationsEnabled(characteristic, false /* indicate */);
+//                    mCurrentServiceFragment.notificationsEnabled(characteristic, false /* indicate */);
                     descriptor.setValue(value);
                 } else if (supportsIndications &&
                         Arrays.equals(value, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
                     status = BluetoothGatt.GATT_SUCCESS;
-                    mCurrentServiceFragment.notificationsEnabled(characteristic, true /* indicate */);
+//                    mCurrentServiceFragment.notificationsEnabled(characteristic, true /* indicate */);
                     descriptor.setValue(value);
                 } else {
                     status = BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED;
@@ -254,138 +297,121 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
                         /* No need to respond with a value */ null);
             }
 
-            if(CHARACTERISTIC_USER_DESCRIPTION_UUID.equals(descriptor.getUuid())) {
-                TextView clientName = findViewById(R.id.client_name);
-                String name = new String(descriptor.getValue());
-                clientName.setText("Client Name: " + name);
-            }
         }
     };
 
-    /////////////////////////////////
-    ////// Lifecycle Callbacks //////
-    /////////////////////////////////
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_peripherals);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        mAdvStatus = (TextView) findViewById(R.id.textView_advertisingStatus);
-        mConnectionStatus = (TextView) findViewById(R.id.textView_connectionStatus);
-        mBluetoothDevices = new HashSet<>();
-        mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        mBluetoothAdapter = mBluetoothManager.getAdapter();
 
-        // If we are not being restored from a previous state then create and add the fragment.
-        if (savedInstanceState == null) {
-            mCurrentServiceFragment = new BatteryServiceFragment();
+  // GATT
+  private BluetoothGattService mBatteryService;
+  private BluetoothGattCharacteristic mChargingStateCharacteristic;
+  private BluetoothGattCharacteristic mRXCharacteristics;
+  private BluetoothGattCharacteristic mTXCharacteristics;
 
-            getFragmentManager()
-                    .beginTransaction()
-                    .add(R.id.fragment_container, mCurrentServiceFragment, CURRENT_FRAGMENT_TAG)
-                    .commit();
+
+  public BluetoothLeService() {
+
+    mChargingStateCharacteristic =
+            new BluetoothGattCharacteristic(CHARGING_STATE_UUID,
+                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                    BluetoothGattCharacteristic.PERMISSION_WRITE);
+    mChargingStateCharacteristic.addDescriptor(
+            getClientCharacteristicConfigurationDescriptor());
+    mChargingStateCharacteristic.addDescriptor(
+            getCharacteristicUserDescriptionDescriptor(BATTERY_LEVEL_DESCRIPTION));
+
+
+
+    mRXCharacteristics =
+            new BluetoothGattCharacteristic(RX_UUID,
+                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                    BluetoothGattCharacteristic.PERMISSION_READ);
+    mRXCharacteristics.addDescriptor(
+            getClientCharacteristicConfigurationDescriptor());
+    mRXCharacteristics.addDescriptor(
+            getCharacteristicUserDescriptionDescriptor(BATTERY_LEVEL_DESCRIPTION));
+
+
+    mTXCharacteristics =
+            new BluetoothGattCharacteristic(TX_UUID,
+                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                    BluetoothGattCharacteristic.PERMISSION_WRITE);
+    mTXCharacteristics.addDescriptor(
+            getClientCharacteristicConfigurationDescriptor());
+    mTXCharacteristics.addDescriptor(
+            getCharacteristicUserDescriptionDescriptor(BATTERY_LEVEL_DESCRIPTION));
+
+
+
+    mBatteryService = new BluetoothGattService(CHARGING_SERVICE_UUID,
+        BluetoothGattService.SERVICE_TYPE_PRIMARY);
+    mBatteryService.addCharacteristic(mChargingStateCharacteristic);
+    mBatteryService.addCharacteristic(mRXCharacteristics);
+    mBatteryService.addCharacteristic(mTXCharacteristics);
+  }
+
+
+  // Lifecycle callbacks
+
+
+  public void notificationSent(BluetoothDevice device, int status) {
+        String nextChunk = mRxBuffer.poll();
+
+        if(nextChunk != null) {
+          mRXCharacteristics.setValue(nextChunk);
+          sendNotificationToDevices(mRXCharacteristics);
         } else {
-            mCurrentServiceFragment = (ServiceFragment) getFragmentManager()
-                    .findFragmentByTag(CURRENT_FRAGMENT_TAG);
+          Log.v(TAG, "Finished sending did: " + System.currentTimeMillis());
         }
-        mBluetoothGattService = mCurrentServiceFragment.getBluetoothGattService();
+  }
 
-        mAdvSettings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-                .setConnectable(true)
-                .build();
-        mAdvData = new AdvertiseData.Builder()
-                .addServiceUuid(mCurrentServiceFragment.getServiceUUID())
-                .build();
 
-        mAdvScanResponse = new AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
-            .build();
+  public int writeCharacteristic(BluetoothGattCharacteristic characteristic, int offset, final byte[] value) {
+    try {
+      if (offset != 0) {
+        return BluetoothGatt.GATT_INVALID_OFFSET;
+      }
 
-    }
+      characteristic.setValue(value);
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.menu_peripheral, menu);
-        return true /* show menu */;
-    }
+        // If Value written on state indicator
+        if (characteristic.getUuid().equals(CHARGING_STATE_UUID)) {
+            int newState = mChargingStateCharacteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+            mCommonUtils.writeLine("Stage: "+ newState);
+            broadcastUpdate(TX_MSG_RECVD, newState, null);
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_ENABLE_BT) {
-            if (resultCode == RESULT_OK) {
-                if (!mBluetoothAdapter.isMultipleAdvertisementSupported()) {
-                    Toast.makeText(this, R.string.bluetoothAdvertisingNotSupported, Toast.LENGTH_LONG).show();
-                    Log.e(TAG, "Advertising not supported");
-                }
-                onStart();
-            } else {
-                //TODO(g-ortuno): UX for asking the user to activate bt
-                Toast.makeText(this, R.string.bluetoothNotEnabled, Toast.LENGTH_LONG).show();
-                Log.e(TAG, "Bluetooth not enabled");
-                finish();
-            }
+        } else if (characteristic.getUuid().equals(TX_UUID)){
+            // Value is written to TX characteristic
+            mTxBuffer.add(mTXCharacteristics.getStringValue(0));
         }
+
+    } catch (Exception e) {
+      e.printStackTrace();
     }
+    return BluetoothGatt.GATT_SUCCESS;
+  }
 
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        resetStatusViews();
-        // If the user disabled Bluetooth when the app was in the background,
-        // openGattServer() will return null.
-        mGattServer = mBluetoothManager.openGattServer(this, mGattServerCallback);
-        if (mGattServer == null) {
-            ensureBleFeaturesAvailable();
-            return;
-        }
-        // Add a service for a total of three services (Generic Attribute and Generic Access
-        // are present by default).
-        mGattServer.addService(mBluetoothGattService);
+  public String getBLEMessage() {
+    String s = mTxBuffer.extract();
+    String bleMessage = s.substring(0,s.length()-1);
+    return bleMessage;
+  }
 
-        if (mBluetoothAdapter.isMultipleAdvertisementSupported()) {
-            mAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
-            mAdvertiser.startAdvertising(mAdvSettings, mAdvData, mAdvScanResponse, mAdvCallback);
-        } else {
-            mAdvStatus.setText(R.string.status_noLeAdv);
-        }
-    }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_disconnect_devices) {
-            disconnectFromDevices();
-            return true /* event_consumed */;
-        }
-        return false /* event_consumed */;
-    }
+//  public byte[] delimitLongData(byte[] data) {
+//    ByteArrayOutputStream delimitedStream = null;
+//    try {
+//      delimitedStream = new ByteArrayOutputStream();
+//      delimitedStream.write(data);
+//      delimitedStream.write("ä".getBytes());
+//    } catch (IOException e) {
+//      e.printStackTrace();
+//    }
+//    return delimitedStream.toByteArray();
+//  }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        if (mGattServer != null) {
-            mGattServer.close();
-        }
-        if (mBluetoothAdapter.isEnabled() && mAdvertiser != null) {
-            // If stopAdvertising() gets called before close() a null
-            // pointer exception is raised.
-            mAdvertiser.stopAdvertising(mAdvCallback);
-        }
-        resetStatusViews();
-    }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        disconnectFromDevices();
-    }
-
-    @Override
     public void sendNotificationToDevices(BluetoothGattCharacteristic characteristic) {
         boolean indicate = (characteristic.getProperties()
                 & BluetoothGattCharacteristic.PROPERTY_INDICATE)
@@ -396,26 +422,98 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
         }
     }
 
-    private void resetStatusViews() {
-        mAdvStatus.setText(R.string.status_notAdvertising);
-        updateConnectedDevicesStatus();
+  public void writeLongLocalCharacteristic(String payload) {
+    int start = 0;
+    payload = payload + "ä";
+
+    while (start < payload.length()) {
+      int end = Math.min(payload.length(), start + mtuLength);
+      String chunk = payload.substring(start,end);
+      mRxBuffer.add(chunk);
+      start += mtuLength;
     }
 
-    private void updateConnectedDevicesStatus() {
-        final String message;
+    mRXCharacteristics.setValue(mRxBuffer.poll());
+    sendNotificationToDevices(mRXCharacteristics);
+  }
 
-        if (mBluetoothManager.getConnectedDevices(BluetoothGattServer.GATT).size() > 0) {
-            message = "Connected";
-        } else {
-            message = "Disconnected";
+
+  public void initialize() {
+      mTxBuffer = new MessageBuffer(mtuLength);
+      mRxBuffer = new MessageBuffer(mtuLength);
+
+      mCommonUtils = new CommonUtils();
+
+
+      mBluetoothDevices = new HashSet<>();
+      mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+      mBluetoothAdapter = mBluetoothManager.getAdapter();
+
+      mAdvSettings = new AdvertiseSettings.Builder()
+              .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+              .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+              .setConnectable(true)
+              .build();
+      mAdvData = new AdvertiseData.Builder()
+              .addServiceUuid(getServiceUUID())
+              .build();
+
+      mAdvScanResponse = new AdvertiseData.Builder()
+              .setIncludeDeviceName(true)
+              .build();
+  }
+
+    public ParcelUuid getServiceUUID() {
+        return new ParcelUuid(CHARGING_SERVICE_UUID);
+    }
+
+  public void startGattServer() {
+      mGattServer = mBluetoothManager.openGattServer(this, mGattServerCallback);
+
+      // Add a service for a total of three services (Generic Attribute and Generic Access
+      // are present by default).
+      mGattServer.addService(mBatteryService);
+
+      if (mBluetoothAdapter.isMultipleAdvertisementSupported()) {
+          mAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
+          mAdvertiser.startAdvertising(mAdvSettings, mAdvData, mAdvScanResponse, mAdvCallback);
+      } else {
+          mCommonUtils.writeLine(getString(R.string.status_noLeAdv));
+      }
+
+  }
+
+    public class LocalBinder extends Binder {
+        BluetoothLeService getService() {
+            return BluetoothLeService.this;
         }
+    }
 
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mConnectionStatus.setText(message);
-            }
-        });
+    @Override
+    public IBinder onBind(Intent intent) {
+        return mBinder;
+    }
+
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        // After using a given device, you should make sure that BluetoothGatt.close() is called
+        // such that resources are cleaned up properly.  In this particular example, releaseResources() is
+        // invoked when the UI is disconnected from the Service.
+        releaseResources();
+        return super.onUnbind(intent);
+    }
+
+
+    private void releaseResources() {
+        if (mGattServer != null) {
+            mGattServer.close();
+        }
+        if (mBluetoothAdapter.isEnabled() && mAdvertiser != null) {
+            // If stopAdvertising() gets called before close() a null
+            // pointer exception is raised.
+            mAdvertiser.stopAdvertising(mAdvCallback);
+        }
     }
 
     ///////////////////////
@@ -440,35 +538,13 @@ public class Peripheral extends Activity implements ServiceFragmentDelegate {
         }
     }
 
-    private void ensureBleFeaturesAvailable() {
-        if (mBluetoothAdapter == null) {
-            Toast.makeText(this, R.string.bluetoothNotSupported, Toast.LENGTH_LONG).show();
-            Log.e(TAG, "Bluetooth not supported");
-            finish();
-        } else if (!mBluetoothAdapter.isEnabled()) {
-            // Make sure bluetooth is enabled.
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        }
-    }
 
-    private void disconnectFromDevices() {
+    public void disconnectFromDevices() {
         Log.d(TAG, "Disconnecting devices...");
         for (BluetoothDevice device : mBluetoothManager.getConnectedDevices(
                 BluetoothGattServer.GATT)) {
             Log.d(TAG, "Devices: " + device.getAddress() + " " + device.getName());
             mGattServer.cancelConnection(device);
-        }
-    }
-
-    private void refreshDeviceCache(BluetoothGatt bluetoothGatt) {
-        try {
-            Method hiddenClearCacheMethod = bluetoothGatt.getClass().getMethod("refresh");
-            if (hiddenClearCacheMethod != null) {
-                hiddenClearCacheMethod.invoke(bluetoothGatt);
-            }
-        } catch (Exception ignored) {
-            Log.e("cache", "could not clear cache");
         }
     }
 }

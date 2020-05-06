@@ -1,6 +1,7 @@
 package com.spire.bledemo.app;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -14,11 +15,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 
@@ -29,10 +34,11 @@ public class MainActivity extends Activity {
 
 
     // UI elements
-    private TextView messages;
-    private TextView mCsDetails;
-    private TextView input;
+    private TextView mStatusText, messages;
+    private TextView mCsName, mCsMac, mEvDid, mCsDid1, mCsDid2, mCsoProof;
+    private ImageView chargeProgress;
 
+    private PieProgressDrawable mPieProgress;
 
     private IndyService mIndyService;
     private BluetoothLeService mBluetoothLeService;
@@ -44,10 +50,26 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+    //    AppCompatDelegate.setDefaultNightMode(
+    //            AppCompatDelegate.MODE_NIGHT_YES);
+
+
         // Grab references to UI elements.
+        mStatusText = findViewById(R.id.status_text);
         messages = (TextView) findViewById(R.id.messages);
-        input = (EditText) findViewById(R.id.input);
-        mCsDetails = findViewById(R.id.csDetails);
+        mCsName = findViewById(R.id.cs_name_text);
+        mCsMac = findViewById(R.id.cs_mac_text);
+        mEvDid = findViewById(R.id.ev_did_text);
+        mCsDid1 = findViewById(R.id.cs_did1_text);
+        mCsDid2 = findViewById(R.id.cs_did2_text);
+        mCsoProof = findViewById(R.id.csoProofText);
+
+        mPieProgress = new PieProgressDrawable();
+        mPieProgress.setColor(ContextCompat.getColor(this, R.color.f_green));
+        chargeProgress = (ImageView) findViewById(R.id.charge_progress);
+        chargeProgress.setImageDrawable(mPieProgress);
+
+        updatePieProgress(30);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
@@ -59,8 +81,21 @@ public class MainActivity extends Activity {
     }
 
 
+    public void updatePieProgress(int progress) {
+        mPieProgress.setLevel(progress);
+        chargeProgress.invalidate();
+    }
+
+
     // Start EV charging manually
-    public void startCharging(View v) {
+    public void startCharging() {
+        mEvDid.setText(R.string.dash_placeholder);
+        mCsDid1.setText(R.string.dash_placeholder);
+        mCsDid2.setText(R.string.dash_placeholder);
+        mCsoProof.setText(R.string.dash_placeholder);
+
+        // disconnect and start again.
+        updatePieProgress(0);
         nextStage(0);
     }
 
@@ -118,7 +153,17 @@ public class MainActivity extends Activity {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-        if (id == R.id.action_settings) {
+        if (id == R.id.action_recharge) {
+            startCharging();
+            return true;
+        } else if (id == R.id.action_time_measurements) {
+            Intent intent = new Intent(this, TimeMeasurementsActivity.class );
+            intent.putExtra("timeList", mBluetoothLeService.getTimeList() );
+            startActivity(intent);
+            return true;
+        } else if (id == R.id.action_refresh_credentials) {
+            mIndyService.generateCredentials();
+//            progressDialog = ProgressDialog.show();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -136,7 +181,7 @@ public class MainActivity extends Activity {
 
     public void nextStage(int stage) {
         if (mBluetoothLeService.write(stage)) {
-            writeLine("Sent: " + stage);
+            writeLine("Stage: " + stage);
         } else {
             writeLine("Couldn't write stage to stage characteristic! " + stage);
         }
@@ -247,8 +292,12 @@ public class MainActivity extends Activity {
                 String deviceName = intent.getStringExtra(BluetoothLeService.DEVICE_NAME);
                 String deviceAddress = intent.getStringExtra(BluetoothLeService.DEVICE_ADDRESS);
 
-                mCsDetails.setText(" Status: Connected \n CS Name: " + deviceName + "\n MAC: " + deviceAddress + " \n");
-                ((RelativeLayout) mCsDetails.getParent()).setBackgroundColor(getResources().getColor(android.R.color.holo_green_light));
+                mStatusText.setText("Connected");
+                mCsName.setText(deviceName);
+                mCsMac.setText(deviceAddress);
+
+//                mCsDetails.setText(" Status: Connected \n CS Name: " + deviceName + "\n MAC: " + deviceAddress + " \n");
+//                ((RelativeLayout) mCsDetails.getParent()).setBackgroundColor(getResources().getColor(android.R.color.holo_green_light));
                 nextStage(0);
 
             } else if (BluetoothLeService.RX_MSG_RECVD.equals(action)) {

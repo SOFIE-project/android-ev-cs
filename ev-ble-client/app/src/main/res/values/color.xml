@@ -26,6 +26,8 @@
     <!-- Seconday Text / Icons -->
     <color name="secondary_text">#757575</color>
 
+
     <color name="f_green">#68d97d</color>
     <color name="f_blue">#8aabe3</color>
+
 </resources>

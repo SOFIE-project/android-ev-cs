@@ -37,26 +37,22 @@ import fi.aalto.indy_utils.PoolUtils;
 import fi.aalto.indy_utils.ProofUtils;
 import fi.aalto.indy_utils.WalletUtils;
 
-//import android.support.annotation.RequiresApi;
-
+import static android.content.ContentValues.TAG;
 
 public class IndyService extends Service {
+
     CommonUtils mCommonUtils;
 
-    private Wallet evWallet;
-    private Wallet csoWallet;
-    private Wallet dsoWallet;
-    private Wallet csWallet;
-    private Wallet erWallet;
-    private Wallet stewardWallet;
 
-    DidResults.CreateAndStoreMyDidResult evDID;
+    private Wallet csWallet;
+
     private DidResults.CreateAndStoreMyDidResult csDID;
-    private DidResults.CreateAndStoreMyDidResult stewardDID;
-    private DidResults.CreateAndStoreMyDidResult csoDID;
-    private DidResults.CreateAndStoreMyDidResult dsoDID;
     private DidResults.CreateAndStoreMyDidResult erDID;
 
+
+    private JSONObject csoInfoCredentialSchemaFromLedger;
+    private JSONObject dsoDistrictCredentialSchemaFromLedger;
+    private JSONObject erChargingCredentialSchemaFromLedger;
     private JSONObject csoInfoCredentialDefFromLedger;
     private JSONObject erChargingCredentialDefFromLedger;
     private JSONObject dsoDistrictCredentialDefFromLedger;
@@ -65,15 +61,10 @@ public class IndyService extends Service {
     private JSONObject erChargingProofRequest;
 
     private String csMasterSecretID;
-    private String evMasterSecretID;
-
-    private JSONObject csoInfoCredentialSchemaFromLedger;
-    private JSONObject dsoDistrictCredentialSchemaFromLedger;
-    private JSONObject erChargingCredentialSchemaFromLedger;
 
     private Pool sofiePool;
 
-    private String csDid1, evDiD;
+    private String csDid1, evDiD, evVerkey;
 
     public static final String ACTION_INDY_INITIALIZED = "com.spire.bledemo.app.ACTION_INDY_INITIALIZED";
 
@@ -81,12 +72,60 @@ public class IndyService extends Service {
     // Worker thread to unblock the ble callbacks on binder thread
     private HandlerThread indyOperationHandlerThread = new HandlerThread("indyOperationHandlerThread");
     private Handler indyHandler;
-    private Context mMainContext;
 
+
+    public String joinMessageParts(String... parts) {
+        StringBuilder message = new StringBuilder();
+        for(String part : parts) {
+            message.append(part).append("|");
+        }
+        return message.toString();
+    }
+
+
+    public void readLedger(String erChargingCredentialSchemaId,String erChargingCredDefId){
+        try {
+            erChargingCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDID.getDid(), erChargingCredentialSchemaId, sofiePool);
+            Log.i(this.getClass().toString(), String.format("ER-EV charging info credential schema fetched from ledger: %s", erChargingCredentialSchemaFromLedger));
+
+            erChargingCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDID.getDid(), erChargingCredDefId, sofiePool);
+            Log.i(this.getClass().toString(), String.format("ER-EV charging info credential definition fetched from ledger: %s", erChargingCredentialDefFromLedger));
+        } catch (Exception e) {
+            if (e instanceof  IndyException) {
+                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
+                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
+                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
+            }
+            e.printStackTrace();
+        }
+    }
 
     // CS function
     public String createCsDid1() {
-        return csDID.getDid();
+
+        try {
+
+            String csoCredSchemaId = csoInfoCredentialSchemaFromLedger.getString("id");
+            String dsoCredSchemaId = dsoDistrictCredentialSchemaFromLedger.getString("id");
+            String csoCredDefId = csoInfoCredentialDefFromLedger.getString("id");
+            String dsoCredDefId =  dsoDistrictCredentialDefFromLedger.getString("id") ;
+
+            Log.i(TAG, csoCredSchemaId);
+            Log.i(TAG, dsoCredSchemaId);
+            Log.i(TAG,csoCredDefId );
+            Log.i(TAG, dsoCredDefId );
+
+            return joinMessageParts(csDID.getDid(), csDID.getVerkey(), csoCredSchemaId, dsoCredSchemaId, csoCredDefId, dsoCredDefId);
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    private String[] splitMessage(String payload) {
+        return payload.split("\\|");
     }
 
 
@@ -94,8 +133,13 @@ public class IndyService extends Service {
     public void parseEVDIDAndCSOProofRequest(String msg) {
 
         try {
-            evDiD = msg.split("\\|")[0];
-            String csoProofRequestString = msg.split("\\|")[1];
+            String[] messageParts = splitMessage(msg);
+            evDiD = messageParts[0];
+            evVerkey = messageParts[1];
+            String csoProofRequestString = messageParts[2];
+            String erChargingCredentialSchemaId = messageParts[3];
+            String erChargingCredDefId = messageParts[4];
+            readLedger(erChargingCredentialSchemaId, erChargingCredDefId);
             csoInfodsoDistrictProofRequest = new JSONObject(csoProofRequestString);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -210,13 +254,11 @@ public class IndyService extends Service {
 
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
-        //       intent.putExtra(CURRENT_STAGE, stage);
-
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
-    public void initialize(Context mainContext) {
-        mMainContext = mainContext;
+    public void initialize() {
+
         mCommonUtils = new CommonUtils();
 
         indyOperationHandlerThread.start();
@@ -245,6 +287,17 @@ public class IndyService extends Service {
         }
     }
 
+    /*
+    Full initialization requires (Only one mode is enough)
+    0. Initialize indy, pool connection
+    1. Wallet creation, opening CS, ER, CSO, DSO
+    2. Did creation for CS, ER, CSO, DSO , stewart
+    3. schema creation CSO, DSO
+    4. schema definition with CSO,DSO did
+    5. credential offer
+    6. credential request with CS wallet master secret
+    7. credential creation with offer and request
+     */
     private void initializeIndy() {
 
         try {
@@ -254,12 +307,11 @@ public class IndyService extends Service {
             // 1. Indy initialisation
 
             Log.i(this.getClass().toString(), "Initialising Indy context...");
-            IndyUtils.initialise(mMainContext);
+            IndyUtils.initialise(getApplicationContext());
 
             // 2. Wallets creation
 
             Log.i(this.getClass().toString(), "Creating EV, CSO, CS, DSO and steward wallets...");
-            WalletUtils.createEVWallet();
             WalletUtils.createCSWallet();
             WalletUtils.createCSOWallet();
             WalletUtils.createDSOWallet();
@@ -268,18 +320,16 @@ public class IndyService extends Service {
 
             // 3. Wallets opening
 
-            Log.i(this.getClass().toString(), "Opening EV wallet...");
-            evWallet = WalletUtils.openEVWallet();
-            Log.i(this.getClass().toString(), "Opening CSO wallet...");
-            csoWallet = WalletUtils.openCSOWallet();
-            Log.i(this.getClass().toString(), "Opening DSO wallet...");
-            dsoWallet = WalletUtils.openDSOWallet();
             Log.i(this.getClass().toString(), "Opening CS wallet...");
             csWallet = WalletUtils.openCSWallet();
+            Log.i(this.getClass().toString(), "Opening CSO wallet...");
+            Wallet csoWallet = WalletUtils.openCSOWallet();
+            Log.i(this.getClass().toString(), "Opening DSO wallet...");
+            Wallet dsoWallet = WalletUtils.openDSOWallet();
             Log.i(this.getClass().toString(), "Opening ER wallet...");
-            erWallet = WalletUtils.openERWallet();
+            Wallet erWallet = WalletUtils.openERWallet();
             Log.i(this.getClass().toString(), "Opening steward wallet...");
-            stewardWallet = WalletUtils.openStewardWallet();
+            Wallet stewardWallet = WalletUtils.openStewardWallet();
 
             // 4. Pool configuration + connection
 
@@ -291,26 +341,23 @@ public class IndyService extends Service {
             sofiePool = PoolUtils.connectToSOFIEPool();
             Log.i(this.getClass().toString(), "Connected to SOFIE pool.");
 
-            // 5. DIDs creation
 
-            Log.i(this.getClass().toString(), "Calculating EV DID...");
-            evDID = DIDUtils.createEVDID(evWallet);
-            Log.i(this.getClass().toString(), String.format("EV DID calculated: %s - %s", evDID.getDid(), evDID.getVerkey()));
+            // 5. DIDs creation
 
             Log.i(this.getClass().toString(), "Calculating CS DID...");
             csDID = DIDUtils.createCSDID(csWallet);
             Log.i(this.getClass().toString(), String.format("CS DID calculated: %s - %s", csDID.getDid(), csDID.getVerkey()));
 
             Log.i(this.getClass().toString(), "Calculating steward DID...");
-            stewardDID = DIDUtils.createStewardDID(stewardWallet);
+            DidResults.CreateAndStoreMyDidResult stewardDID = DIDUtils.createStewardDID(stewardWallet);
             Log.i(this.getClass().toString(), String.format("CSO steward DID calculated: %s - %s", stewardDID.getDid(), stewardDID.getVerkey()));
 
             Log.i(this.getClass().toString(), "Calculating and writing on ledger CSO DID...");
-            csoDID = DIDUtils.createAndWriteCSODID(csoWallet, stewardWallet, stewardDID.getDid(), sofiePool);
+            DidResults.CreateAndStoreMyDidResult csoDID = DIDUtils.createAndWriteCSODID(csoWallet, stewardWallet, stewardDID.getDid(), sofiePool);
             Log.i(this.getClass().toString(), String.format("CSO DID calculated and written on ledger: %s - %s", csoDID.getDid(), csoDID.getVerkey()));
 
             Log.i(this.getClass().toString(), "Calculating and writing on ledger DSO DID...");
-            dsoDID = DIDUtils.createAndWriteDSODID(dsoWallet, stewardWallet, stewardDID.getDid(), sofiePool);
+            DidResults.CreateAndStoreMyDidResult dsoDID = DIDUtils.createAndWriteDSODID(dsoWallet, stewardWallet, stewardDID.getDid(), sofiePool);
             Log.i(this.getClass().toString(), String.format("DSO DID calculated and written on ledger: %s - %s", dsoDID.getDid(), dsoDID.getVerkey()));
 
             Log.i(this.getClass().toString(), "Calculating and writing on ledger ER DID...");
@@ -333,12 +380,6 @@ public class IndyService extends Service {
             dsoDistrictCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(dsoDID.getDid(), dsoDistrictCredentialSchema.getSchemaId(), sofiePool);
             Log.i(this.getClass().toString(), String.format("CS-DSO district info credential schema fetched from ledger: %s", dsoDistrictCredentialSchemaFromLedger));
 
-            Log.i(this.getClass().toString(), "Creating and writing on ledger credential schema for ER-EV charging info...");
-            AnoncredsResults.IssuerCreateSchemaResult erChargingCredentialSchema = CredentialSchemaUtils.createAndWriteERChargingCredentialSchema(erDID.getDid(), erWallet, sofiePool);
-            Log.i(this.getClass().toString(), String.format("Credential schema for ER-EV charging info created and written on ledger."));
-
-            erChargingCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDID.getDid(), erChargingCredentialSchema.getSchemaId(), sofiePool);
-            Log.i(this.getClass().toString(), String.format("ER-EV charging info credential schema fetched from ledger: %s", erChargingCredentialSchemaFromLedger));
 
             // 7. Credential definitions creation
 
@@ -356,20 +397,6 @@ public class IndyService extends Service {
             dsoDistrictCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(dsoDID.getDid(), dsoDistrictCredentialDefinition.getCredDefId(), sofiePool);
             Log.i(this.getClass().toString(), String.format("CS-DSO district info credential definition fetched from ledger: %s", dsoDistrictCredentialDefFromLedger));
 
-            Log.i(this.getClass().toString(), "Creating and writing on ledger credential definition for ER-EV charging info...");
-            AnoncredsResults.IssuerCreateAndStoreCredentialDefResult erChargingCredentialDefinition = CredentialDefinitionUtils.createAndWriteERChargingCredentialDefinition(erDID.getDid(), erWallet, erChargingCredentialSchemaFromLedger.getJSONObject("object"), sofiePool);
-            Log.i(this.getClass().toString(), String.format("Credential definition for ER-CS charging info created and written on ledger."));
-
-            erChargingCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDID.getDid(), erChargingCredentialDefinition.getCredDefId(), sofiePool);
-            Log.i(this.getClass().toString(), String.format("ER-EV charging info credential definition fetched from ledger: %s", erChargingCredentialDefFromLedger));
-
-            // 7.1. Revocation registries creation
-
-//                    JSONObject revRegDefConfig = new JSONObject().put("issuance_type", "ISSUANCE_ON_DEMAND");
-//                    JSONObject tailsWriterConfig = new JSONObject().put("base_dir", IndyUtils.getTailsFilePath()).put("uri_pattern", "");
-//                    BlobStorageWriter tailsWriter = BlobStorageWriter.openWriter("default", tailsWriterConfig.toString()).get();
-//                    String revRegDefTag = "tag";
-//                    AnoncredsResults.IssuerCreateAndStoreRevocRegResult createRevRegResult = Anoncreds.issuerCreateAndStoreRevocReg(csoWallet, csoDID.getDid(), null, revRegDefTag, csoInfoCredentialDefFromLedger.getString("id"), revRegDefConfig.toString(), tailsWriter).get();
 
             // 8. Credential offers creation
 
@@ -381,18 +408,12 @@ public class IndyService extends Service {
             JSONObject dsoDistrictCredentialOffer = CredentialUtils.createCredentialOffer(dsoWallet, dsoDistrictCredentialDefFromLedger.getString("id"));
             Log.i(this.getClass().toString(), String.format("Credential offer for CS-DSO district info created: %s", dsoDistrictCredentialOffer));
 
-            Log.i(this.getClass().toString(), "Creating credential offer for ER-EV charging info...");
-            JSONObject erChargingCredentialOffer = CredentialUtils.createCredentialOffer(erWallet, erChargingCredentialDefFromLedger.getString("id"));
-            Log.i(this.getClass().toString(), String.format("Credential offer for ER-EV charging info created: %s", erChargingCredentialOffer));
 
-
+            // Creating wallet master secret
             Log.i(this.getClass().toString(), "Creating master secret for CS wallet...");
             csMasterSecretID = CredentialUtils.createAndSaveCSMasterSecret(csWallet);
             Log.i(this.getClass().toString(), String.format("Master secret for CS wallet created: %s", csMasterSecretID));
 
-            Log.i(this.getClass().toString(), "Creating master secret for EV wallet...");
-            evMasterSecretID = CredentialUtils.createAndSaveEVMasterSecret(evWallet);
-            Log.i(this.getClass().toString(), String.format("Master secret for EV wallet created: %s", evMasterSecretID));
 
             // 9. Credential requests creation
 
@@ -403,10 +424,6 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Creating credential request for CS-DSO district info...");
             AnoncredsResults.ProverCreateCredentialRequestResult dsoDistrictCredentialRequest = CredentialUtils.createDSODistrictCredentialRequest(csWallet, csDID.getDid(), dsoDistrictCredentialOffer, dsoDistrictCredentialDefFromLedger.getJSONObject("object"), csMasterSecretID);
             Log.i(this.getClass().toString(), String.format("Credential request for CS-DSO district info created: %s", dsoDistrictCredentialRequest.getCredentialRequestJson()));
-
-            Log.i(this.getClass().toString(), "Creating credential request for ER-EV charging info...");
-            AnoncredsResults.ProverCreateCredentialRequestResult erChargingCredentialRequest = CredentialUtils.createERChargingCredentialRequest(evWallet, evDID.getDid(), erChargingCredentialOffer, erChargingCredentialDefFromLedger.getJSONObject("object"), evMasterSecretID);
-            Log.i(this.getClass().toString(), String.format("Credential request for ER-EV charging info created: %s", erChargingCredentialRequest.getCredentialRequestJson()));
 
             // 10. Credentials creation
 
@@ -426,18 +443,24 @@ public class IndyService extends Service {
             WalletUtils.saveCredential(csWallet, new JSONObject(dsoDistrictCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(dsoDistrictCredential.getCredentialJson()), dsoDistrictCredentialDefFromLedger.getJSONObject("object"), dsoDistrictCredential.getRevocRegDeltaJson() != null ? new JSONObject(dsoDistrictCredential.getRevocRegDeltaJson()) : null);
             Log.i(this.getClass().toString(), "Credential for CS-DSO district info saved into CS wallet");
 
-            Log.i(this.getClass().toString(), "Creating credential for ER-EV charging info...");
-            AnoncredsResults.IssuerCreateCredentialResult erChargingCredential = CredentialUtils.createERChargingCredential(erWallet, evDID.getDid(), erChargingCredentialOffer, new JSONObject(erChargingCredentialRequest.getCredentialRequestJson()));
-            Log.i(this.getClass().toString(), String.format("Credential for ER-EV charging info created: %s", erChargingCredential.getCredentialJson()));
 
-            Log.i(this.getClass().toString(), "Saving credential for ER-EV charging info into EV wallet...");
-            WalletUtils.saveCredential(evWallet, new JSONObject(erChargingCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(erChargingCredential.getCredentialJson()), erChargingCredentialDefFromLedger.getJSONObject("object"), erChargingCredential.getRevocRegDeltaJson() != null ? new JSONObject(erChargingCredential.getRevocRegDeltaJson()) : null);
-            Log.i(this.getClass().toString(), "Credential for ER-EV charging info saved into EV wallet");
+            Log.i(this.getClass().toString(), "Closing CSO wallet...");
+            csoWallet.close();
+            Log.i(this.getClass().toString(), "CSO wallet closed.");
+            Log.i(this.getClass().toString(), "Closing DSO wallet...");
+            dsoWallet.close();
+            Log.i(this.getClass().toString(), "DSO wallet closed.");
+            Log.i(this.getClass().toString(), "Closing ER wallet...");
+            erWallet.close();
+            Log.i(this.getClass().toString(), "ER wallet closed.");
+            Log.i(this.getClass().toString(), "Closing steward wallet...");
+            stewardWallet.close();
+            Log.i(this.getClass().toString(), "Steward wallet closed.");
 
 
             mCommonUtils.stopTimer();
 
-         //   broadcastUpdate(ACTION_INDY_INITIALIZED);
+            broadcastUpdate(ACTION_INDY_INITIALIZED);
 
         } catch (Exception e) {
             if (e instanceof IndyException) {
@@ -461,24 +484,9 @@ public class IndyService extends Service {
 
             // 15. Wallets de-initialisation
 
-            Log.i(this.getClass().toString(), "Closing EV wallet...");
-            evWallet.close();
-            Log.i(this.getClass().toString(), "EV wallet closed.");
-            Log.i(this.getClass().toString(), "Closing CSO wallet...");
-            csoWallet.close();
-            Log.i(this.getClass().toString(), "CSO wallet closed.");
-            Log.i(this.getClass().toString(), "Closing DSO wallet...");
-            dsoWallet.close();
-            Log.i(this.getClass().toString(), "DSO wallet closed.");
             Log.i(this.getClass().toString(), "Closing CS wallet...");
             csWallet.close();
             Log.i(this.getClass().toString(), "CS wallet closed.");
-            Log.i(this.getClass().toString(), "Closing ER wallet...");
-            erWallet.close();
-            Log.i(this.getClass().toString(), "ER wallet closed.");
-            Log.i(this.getClass().toString(), "Closing steward wallet...");
-            stewardWallet.close();
-            Log.i(this.getClass().toString(), "Steward wallet closed.");
 
             mCommonUtils.stopTimer();
 

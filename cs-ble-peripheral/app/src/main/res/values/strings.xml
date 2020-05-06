@@ -14,9 +14,8 @@
   limitations under the License.
 -->
 <resources>
-    <string name="app_name">EV Charging Simulator</string>
-    <string name="title_activity_peripherals">Peripherals</string>
-    <string name="title_activity_peripheral">Charging Station</string>
+    <string name="app_name">CS Charging Simulation</string>
+    <string name="title_activity_peripheral">Charging Station (CS)</string>
     <string name="notify">Notify</string>
 
     <!-- Bluetooth -->
@@ -64,4 +63,10 @@
         discoverable.
     </string>
     <string name="menu_disconnect_devices">Disconnect Devices</string>
+
+    <!-- UI display strings -->
+    <string name="action_recharge">Recharge</string>
+    <string name="action_time_measurements">Time Measurements</string>
+    <string name="action_refresh_credentials">Refresh Credentials</string>
+    <string name="dash_placeholder">-</string>
 </resources>

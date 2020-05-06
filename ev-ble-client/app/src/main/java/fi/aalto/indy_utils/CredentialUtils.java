@@ -17,9 +17,9 @@ import java.util.concurrent.ExecutionException;
 
 public final class CredentialUtils {
 
-    private static final String CS_MASTER_SECRET_ID = "CS-secret";
+    public static final String CS_MASTER_SECRET_ID = "CS-secret";
 
-    private static final String EV_MASTER_SECRET_ID = "EV-secret";
+    public static final String EV_MASTER_SECRET_ID = "EV-secret";
 
     public static final int CS_DISTRICT_ID = 1;
 

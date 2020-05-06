@@ -25,9 +25,9 @@ public final class DIDUtils {
 
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter EV_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.EV_DID_SEED, null, null);
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CS_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.CS_DID_SEED, null, null);
-    private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.CSO_DID_SEED, null, null);
-    private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter DSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.DSO_DID_SEED, null, null);
-    private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter ER_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.ER_DID_SEED, null, null);
+    public static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.CSO_DID_SEED, null, null);
+    public static final DidJSONParameters.CreateAndStoreMyDidJSONParameter DSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.DSO_DID_SEED, null, null);
+    public static final DidJSONParameters.CreateAndStoreMyDidJSONParameter ER_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.ER_DID_SEED, null, null);
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CSO_STEWARD_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.STEWARD_DID_SEED, null, null);
 
     private DIDUtils() {}
