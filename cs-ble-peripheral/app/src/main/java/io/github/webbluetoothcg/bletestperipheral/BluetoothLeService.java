@@ -355,7 +355,7 @@ public class BluetoothLeService extends Service {
 
 
   public void notificationSent(BluetoothDevice device, int status) {
-        String nextChunk = mRxBuffer.poll();
+        byte[] nextChunk = mRxBuffer.poll();
 
         if(nextChunk != null) {
           mRXCharacteristics.setValue(nextChunk);
@@ -382,7 +382,7 @@ public class BluetoothLeService extends Service {
 
         } else if (characteristic.getUuid().equals(TX_UUID)){
             // Value is written to TX characteristic
-            mTxBuffer.add(mTXCharacteristics.getStringValue(0));
+            mTxBuffer.add(mTXCharacteristics.getValue());
         }
 
     } catch (Exception e) {
@@ -392,24 +392,10 @@ public class BluetoothLeService extends Service {
   }
 
 
-  public String getBLEMessage() {
-    String s = mTxBuffer.extract();
-    String bleMessage = s.substring(0,s.length()-1);
+  public byte[] getBLEMessage() {
+    byte[] bleMessage = mTxBuffer.extract();
     return bleMessage;
   }
-
-
-//  public byte[] delimitLongData(byte[] data) {
-//    ByteArrayOutputStream delimitedStream = null;
-//    try {
-//      delimitedStream = new ByteArrayOutputStream();
-//      delimitedStream.write(data);
-//      delimitedStream.write("ä".getBytes());
-//    } catch (IOException e) {
-//      e.printStackTrace();
-//    }
-//    return delimitedStream.toByteArray();
-//  }
 
 
     public void sendNotificationToDevices(BluetoothGattCharacteristic characteristic) {
@@ -422,13 +408,12 @@ public class BluetoothLeService extends Service {
         }
     }
 
-  public void writeLongLocalCharacteristic(String payload) {
+  public void writeLongLocalCharacteristic(byte[] payload) {
     int start = 0;
-    payload = payload + "ä";
 
-    while (start < payload.length()) {
-      int end = Math.min(payload.length(), start + mtuLength);
-      String chunk = payload.substring(start,end);
+    while (start < payload.length) {
+      int end = Math.min(payload.length, start + mtuLength);
+      byte[] chunk = Arrays.copyOfRange(payload,start,end);
       mRxBuffer.add(chunk);
       start += mtuLength;
     }

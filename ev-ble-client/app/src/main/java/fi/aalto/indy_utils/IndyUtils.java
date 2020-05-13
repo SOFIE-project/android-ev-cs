@@ -45,12 +45,12 @@ public final class IndyUtils {
      * @throws ErrnoException
      */
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-    public static void initialise(Context context) throws IOException, ErrnoException {
+    public static void initialise(Context context, boolean force) throws IOException, ErrnoException {
         IndyUtils.initialiseDirectories(context);
 
-        CredentialDefinitionUtils.initWithAppContext(context);
-        CredentialSchemaUtils.initWithAppContext(context);
-        CredentialUtils.initWithAppContext(context);
+        CredentialDefinitionUtils.initWithAppContext(context, force);
+        CredentialSchemaUtils.initWithAppContext(context, force);
+        CredentialUtils.initWithAppContext(context, force);
     }
 
     private static void initialiseDirectories(Context c) throws IOException, ErrnoException {

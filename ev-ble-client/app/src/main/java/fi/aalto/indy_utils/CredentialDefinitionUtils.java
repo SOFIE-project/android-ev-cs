@@ -19,17 +19,21 @@ import java.util.concurrent.ExecutionException;
 public final class CredentialDefinitionUtils {
 
     private static final String CSO_INFO_CREDENTIAL_DEFINITION_NAME = "CSO-Info-Credential-Definition-Revocable";
+    private static final String CS_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME = "CS-Certified-DID-Credential-Definition-Revocable";
 
     private static final String DSO_DISTRICT_CREDENTIAL_DEFINITION_NAME = "DSO-District-Credential-Definition-Revocable";
 
     private static final String ER_CHARGING_CREDENTIAL_DEFINITION_NAME = "ER-Charging-Credential-Definition-Revocable";
+    private static final String EV_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME = "EV-Certified-DID-Charging-Credential-Definition-Revocable";
 
     private static SharedPreferences storage;
+    private static boolean force;
 
     private CredentialDefinitionUtils() {}
 
-    static void initWithAppContext(Context context) {
+    static void initWithAppContext(Context context, boolean force) {
         CredentialDefinitionUtils.storage = context.getSharedPreferences("credential-defs", Context.MODE_PRIVATE);
+        CredentialDefinitionUtils.force = force;
     }
 
     /**
@@ -43,7 +47,11 @@ public final class CredentialDefinitionUtils {
      */
     public static AnoncredsResults.IssuerCreateAndStoreCredentialDefResult createAndWriteCSOInfoCredentialDefinition(String csoDID, Wallet csoWallet, JSONObject credentialSchema, Pool targetPool) throws IndyException, LedgerWriteException {
 
-        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.CSO_INFO_CREDENTIAL_DEFINITION_NAME);
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = null;
+
+        if (!CredentialDefinitionUtils.force) {
+            CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.CSO_INFO_CREDENTIAL_DEFINITION_NAME);
+        }
 
         try {
             if (credentialDefinition != null) {
@@ -69,6 +77,38 @@ public final class CredentialDefinitionUtils {
         return credentialDefinition;
     }
 
+    public static AnoncredsResults.IssuerCreateAndStoreCredentialDefResult createAndWriteCSCertifiedDIDCredentialDefinition(String csoDID, Wallet csoWallet, JSONObject credentialSchema, Pool targetPool) throws IndyException, LedgerWriteException {
+
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = null;
+
+        if (!CredentialDefinitionUtils.force) {
+            CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.CS_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME);
+        }
+
+        try {
+            if (credentialDefinition != null) {
+                Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition retrieved from cache.");
+            } else {
+                Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition not found in cache. Generating...");
+                JSONObject credentialDefinitionConfig = new JSONObject().put("support_revocation", true);
+                credentialDefinition = Anoncreds.issuerCreateAndStoreCredentialDef(csoWallet, csoDID, credentialSchema.toString(), CredentialDefinitionUtils.CS_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME, null, credentialDefinitionConfig.toString()).get();
+                CredentialDefinitionUtils.saveCredentialDefinition(CredentialDefinitionUtils.CS_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME, credentialDefinition);
+                Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition saved in cache.");
+                JSONObject credentialDefinitionNymRequest = new JSONObject(Ledger.buildCredDefRequest(csoDID, credentialDefinition.getCredDefJson()).get());
+                JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, csoWallet, csoDID, credentialDefinitionNymRequest.toString()).get());
+
+                if (!LedgerUtils.isLedgerResponseValid(requestResult)) {
+                    throw new LedgerWriteException(LedgerUtils.getErrorMessage(requestResult));
+                }
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        return credentialDefinition;
+    }
+
     /**
      * @param dsoDID = result of DIDUtils.createAndWriteDSODID
      * @param dsoWallet = result of WalletUtils.openDSOWallet
@@ -80,7 +120,11 @@ public final class CredentialDefinitionUtils {
      */
     public static AnoncredsResults.IssuerCreateAndStoreCredentialDefResult createAndWriteDSODistrictCredentialDefinition(String dsoDID, Wallet dsoWallet, JSONObject credentialSchema, Pool targetPool) throws IndyException, LedgerWriteException {
 
-        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.DSO_DISTRICT_CREDENTIAL_DEFINITION_NAME);
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = null;
+
+        if (!CredentialDefinitionUtils.force) {
+            CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.DSO_DISTRICT_CREDENTIAL_DEFINITION_NAME);
+        }
 
         try {
             if (credentialDefinition != null) {
@@ -117,7 +161,11 @@ public final class CredentialDefinitionUtils {
      */
     public static AnoncredsResults.IssuerCreateAndStoreCredentialDefResult createAndWriteERChargingCredentialDefinition(String erDID, Wallet erWallet, JSONObject credentialSchema, Pool targetPool) throws IndyException, LedgerWriteException {
 
-        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.ER_CHARGING_CREDENTIAL_DEFINITION_NAME);
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = null;
+
+        if (!CredentialDefinitionUtils.force) {
+            CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.ER_CHARGING_CREDENTIAL_DEFINITION_NAME);
+        }
 
         try {
             if (credentialDefinition != null) {
@@ -127,6 +175,38 @@ public final class CredentialDefinitionUtils {
                 JSONObject credentialDefinitionConfig = new JSONObject().put("support_revocation", true);
                 credentialDefinition = Anoncreds.issuerCreateAndStoreCredentialDef(erWallet, erDID, credentialSchema.toString(), CredentialDefinitionUtils.ER_CHARGING_CREDENTIAL_DEFINITION_NAME, null, credentialDefinitionConfig.toString()).get();
                 CredentialDefinitionUtils.saveCredentialDefinition(CredentialDefinitionUtils.ER_CHARGING_CREDENTIAL_DEFINITION_NAME, credentialDefinition);
+                Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition saved in cache.");
+                JSONObject credentialDefinitionNymRequest = new JSONObject(Ledger.buildCredDefRequest(erDID, credentialDefinition.getCredDefJson()).get());
+                JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, erWallet, erDID, credentialDefinitionNymRequest.toString()).get());
+
+                if (!LedgerUtils.isLedgerResponseValid(requestResult)) {
+                    throw new LedgerWriteException(LedgerUtils.getErrorMessage(requestResult));
+                }
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        return credentialDefinition;
+    }
+
+    public static AnoncredsResults.IssuerCreateAndStoreCredentialDefResult createAndWriteEVCertifiedDIDCredentialDefinition(String erDID, Wallet erWallet, JSONObject credentialSchema, Pool targetPool) throws IndyException, LedgerWriteException {
+
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credentialDefinition = null;
+
+        if (!CredentialDefinitionUtils.force) {
+            CredentialDefinitionUtils.retrieveCredentialDefinition(CredentialDefinitionUtils.EV_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME);
+        }
+
+        try {
+            if (credentialDefinition != null) {
+                Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition retrieved from cache.");
+            } else {
+                Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition not found in cache. Generating...");
+                JSONObject credentialDefinitionConfig = new JSONObject().put("support_revocation", true);
+                credentialDefinition = Anoncreds.issuerCreateAndStoreCredentialDef(erWallet, erDID, credentialSchema.toString(), CredentialDefinitionUtils.EV_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME, null, credentialDefinitionConfig.toString()).get();
+                CredentialDefinitionUtils.saveCredentialDefinition(CredentialDefinitionUtils.EV_CERTIFIED_DID_CREDENTIAL_DEFINITION_NAME, credentialDefinition);
                 Log.d(CredentialDefinitionUtils.class.toString(), "Credential definition saved in cache.");
                 JSONObject credentialDefinitionNymRequest = new JSONObject(Ledger.buildCredDefRequest(erDID, credentialDefinition.getCredDefJson()).get());
                 JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, erWallet, erDID, credentialDefinitionNymRequest.toString()).get());

@@ -31,8 +31,10 @@ import java.util.concurrent.ExecutionException;
 import fi.aalto.indy_utils.CredentialDefinitionUtils;
 import fi.aalto.indy_utils.CredentialSchemaUtils;
 import fi.aalto.indy_utils.CredentialUtils;
+import fi.aalto.indy_utils.CryptoUtils;
 import fi.aalto.indy_utils.DIDUtils;
 import fi.aalto.indy_utils.IndyUtils;
+import fi.aalto.indy_utils.MessageSignatureException;
 import fi.aalto.indy_utils.PoolUtils;
 import fi.aalto.indy_utils.ProofUtils;
 import fi.aalto.indy_utils.WalletUtils;
@@ -52,10 +54,14 @@ public class IndyService extends Service {
 
     private JSONObject csoInfoCredentialSchemaFromLedger;
     private JSONObject dsoDistrictCredentialSchemaFromLedger;
+    private JSONObject didCertifiedCredentialSchemaFromLedger;
     private JSONObject erChargingCredentialSchemaFromLedger;
+
     private JSONObject csoInfoCredentialDefFromLedger;
     private JSONObject erChargingCredentialDefFromLedger;
     private JSONObject dsoDistrictCredentialDefFromLedger;
+    private JSONObject csDIDCertificationCredentialDefFromLedger;
+    private JSONObject evDIDCertificationCredentialDefFromLedger;
 
     private JSONObject csoInfodsoDistrictProofRequest;
     private JSONObject erChargingProofRequest;
@@ -83,13 +89,19 @@ public class IndyService extends Service {
     }
 
 
-    public void readLedger(String erChargingCredentialSchemaId,String erChargingCredDefId){
+    public void readLedger(String erChargingCredentialSchemaId,String erChargingCredDefId, String didCertifiedCredentialSchemaId, String evDIDCertificationCredDefId){
         try {
             erChargingCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDID.getDid(), erChargingCredentialSchemaId, sofiePool);
             Log.i(this.getClass().toString(), String.format("ER-EV charging info credential schema fetched from ledger: %s", erChargingCredentialSchemaFromLedger));
 
             erChargingCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDID.getDid(), erChargingCredDefId, sofiePool);
             Log.i(this.getClass().toString(), String.format("ER-EV charging info credential definition fetched from ledger: %s", erChargingCredentialDefFromLedger));
+
+            didCertifiedCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDID.getDid(), didCertifiedCredentialSchemaId, sofiePool);
+
+            evDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDID.getDid(), evDIDCertificationCredDefId, sofiePool);
+
+
         } catch (Exception e) {
             if (e instanceof  IndyException) {
                 Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
@@ -101,7 +113,7 @@ public class IndyService extends Service {
     }
 
     // CS function
-    public String createCsDid1() {
+    public byte[] createCsDid1() {
 
         try {
 
@@ -115,7 +127,7 @@ public class IndyService extends Service {
             Log.i(TAG,csoCredDefId );
             Log.i(TAG, dsoCredDefId );
 
-            return joinMessageParts(csDID.getDid(), csDID.getVerkey(), csoCredSchemaId, dsoCredSchemaId, csoCredDefId, dsoCredDefId);
+            return joinMessageParts(csDID.getDid(), csDID.getVerkey(), csoCredSchemaId, dsoCredSchemaId, csoCredDefId, dsoCredDefId).getBytes();
 
         } catch (JSONException e) {
             e.printStackTrace();
@@ -130,8 +142,9 @@ public class IndyService extends Service {
 
 
     // CS function
-    public void parseEVDIDAndCSOProofRequest(String msg) {
+    public void parseEVDIDAndCSOProofRequest(byte[] emsg) {
 
+        String msg = new String(emsg); // unboxMessage(emsg);
         try {
             String[] messageParts = splitMessage(msg);
             evDiD = messageParts[0];
@@ -139,7 +152,9 @@ public class IndyService extends Service {
             String csoProofRequestString = messageParts[2];
             String erChargingCredentialSchemaId = messageParts[3];
             String erChargingCredDefId = messageParts[4];
-            readLedger(erChargingCredentialSchemaId, erChargingCredDefId);
+            String didCertifiedCredentialSchemaId = messageParts[5];
+            String evDIDCertificationCredDefId = messageParts[6];
+            readLedger(erChargingCredentialSchemaId, erChargingCredDefId, didCertifiedCredentialSchemaId, evDIDCertificationCredDefId);
             csoInfodsoDistrictProofRequest = new JSONObject(csoProofRequestString);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -147,28 +162,32 @@ public class IndyService extends Service {
     }
 
     // CS function
-    public String createCSDid2CSOProofAndEVCertificateProofRequest() {
-        String message = "error";
+    public byte[] createCSDid2CSOProofAndEVCertificateProofRequest() {
+        byte[] emessage = null;
         try {
 
             // 12. Proofs creation
 
             Log.i(this.getClass().toString(), "Creating proof for CSO Info + DSO district proof request...");
-            JSONObject csoInfodsoDistrictProofRequestCredentialsRevealed = CredentialUtils.getPredicatesForCSOInfoDSODistrictProofRequest(csWallet, csoInfodsoDistrictProofRequest, true);
+            JSONObject csoInfodsoDistrictProofRequestCredentialsRevealed = CredentialUtils.getPredicatesForCSOInfoDSODistrictCertifiedDIDProofRequest(csWallet, csoInfodsoDistrictProofRequest, true);
 
-            JSONObject csoInfodsoDistrictProofRevealing = ProofUtils.createProofCSOInfoDSODistrictProofRequest(
+            JSONObject csoInfodsoDistrictProofRevealing = ProofUtils.createProofCSOInfoDSODistrictDIDCertifiedProofRequest(
                     csWallet,
                     csoInfodsoDistrictProofRequest,
                     csoInfodsoDistrictProofRequestCredentialsRevealed,
                     csMasterSecretID,
                     csoInfoCredentialSchemaFromLedger.getString("id"),
                     dsoDistrictCredentialSchemaFromLedger.getString("id"),
+                    didCertifiedCredentialSchemaFromLedger.getString("id"),
                     csoInfoCredentialSchemaFromLedger.getJSONObject("object"),
                     dsoDistrictCredentialSchemaFromLedger.getJSONObject("object"),
+                    didCertifiedCredentialSchemaFromLedger.getJSONObject("object"),
                     csoInfoCredentialDefFromLedger.getString("id"),
                     dsoDistrictCredentialDefFromLedger.getString("id"),
+                    csDIDCertificationCredentialDefFromLedger.getString("id"),
                     csoInfoCredentialDefFromLedger.getJSONObject("object"),
-                    dsoDistrictCredentialDefFromLedger.getJSONObject("object")
+                    dsoDistrictCredentialDefFromLedger.getJSONObject("object"),
+                    csDIDCertificationCredentialDefFromLedger.getJSONObject("object")
             );
             Log.i(this.getClass().toString(), String.format("Proof for CSO Info + DSO district proof request created: %s", csoInfodsoDistrictProofRevealing.toString().length()));
 
@@ -176,37 +195,50 @@ public class IndyService extends Service {
 
 
             Log.i(this.getClass().toString(), "Creating EV charging credential proof request...");
-            erChargingProofRequest = ProofUtils.createERChargingProofRequest(erDID.getDid(), erChargingCredentialDefFromLedger.getString("id"));
+            erChargingProofRequest = ProofUtils.createERChargingAndCertifiedDIDProofRequest(erDID.getDid(), erChargingCredentialDefFromLedger.getString("id"), evDIDCertificationCredentialDefFromLedger.getString("id"));
             Log.i(this.getClass().toString(), String.format("EV charging credential proof request created: %s", erChargingProofRequest.toString().length()));
 
             mCommonUtils.stopTimer();
 
-            message = csDID.getDid() + "|" + csoInfodsoDistrictProofRevealing.toString() + "|" + erChargingProofRequest.toString();
+            String message = csDID.getDid() + "|" + csoInfodsoDistrictProofRevealing.toString() + "|" + erChargingProofRequest.toString();
+            emessage = boxMessage(message);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return message;
+        return emessage;
     }
 
 
     // cs function
-    public boolean verifyErChargingProof(String erProofString) {
+    public boolean verifyErChargingProof(byte[] encryptedProof) {
 
+        String erProofString = unboxMessage(encryptedProof);
         boolean isERChargingProofRevealingValid = false;
         try {
             JSONObject erChargingProofRevealing = new JSONObject(erProofString);
 
             Log.i(this.getClass().toString(), "Verifying proof for ER charging credential...");
-            isERChargingProofRevealingValid = ProofUtils.verifyERChargingProofCrypto(
+            isERChargingProofRevealingValid = ProofUtils.verifyERChargingCertifiedDIDProofCrypto(
                     erChargingProofRequest,
                     erChargingProofRevealing,
                     erChargingCredentialSchemaFromLedger.getString("id"),
+                    didCertifiedCredentialSchemaFromLedger.getString("id"),
                     erChargingCredentialSchemaFromLedger.getJSONObject("object"),
+                    didCertifiedCredentialSchemaFromLedger.getJSONObject("object"),
                     erChargingCredentialDefFromLedger.getString("id"),
-                    erChargingCredentialDefFromLedger.getJSONObject("object")
+                    evDIDCertificationCredentialDefFromLedger.getString("id"),
+                    erChargingCredentialDefFromLedger.getJSONObject("object"),
+                    evDIDCertificationCredentialDefFromLedger.getJSONObject("object")
             );
             Log.i(this.getClass().toString(), String.format("Proof for ER charging credential verified with result: %b", isERChargingProofRevealingValid));
-            Log.i(this.getClass().toString(), String.format("Proof for ER charging credential values validated with result: %b", ProofUtils.verifyERChargingProofValues(erChargingProofRevealing, 1)));
+
+            boolean areEVProofValuesValid = ProofUtils.verifyERChargingCertifiedDIDProofValues(
+                    erChargingProofRevealing,
+                    1,
+                    evDiD,
+                    1
+            );
+            Log.w(this.getClass().toString(), String.format("Are EV proof values valid? %b", areEVProofValuesValid));
 
             mCommonUtils.stopTimer();
         } catch (JSONException | IndyException e) {
@@ -215,6 +247,17 @@ public class IndyService extends Service {
 
         return isERChargingProofRevealingValid;
     }
+
+
+    public int verifyCommitment(byte[] signedCommitment) {
+        String commitment = unboxMessage(signedCommitment);
+        if (commitment.contains("stepValue")) {
+            return 0;
+        } else {
+            return 10;
+        }
+    }
+
 
     public void sendchargeStartMessage() {
 
@@ -307,7 +350,7 @@ public class IndyService extends Service {
             // 1. Indy initialisation
 
             Log.i(this.getClass().toString(), "Initialising Indy context...");
-            IndyUtils.initialise(getApplicationContext());
+            IndyUtils.initialise(getApplicationContext(), false);
 
             // 2. Wallets creation
 
@@ -380,33 +423,36 @@ public class IndyService extends Service {
             dsoDistrictCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(dsoDID.getDid(), dsoDistrictCredentialSchema.getSchemaId(), sofiePool);
             Log.i(this.getClass().toString(), String.format("CS-DSO district info credential schema fetched from ledger: %s", dsoDistrictCredentialSchemaFromLedger));
 
+            Log.w(this.getClass().toString(), "Creating and writing on ledger credential schema for DID certification...");
+            AnoncredsResults.IssuerCreateSchemaResult didCertifiedCredentialSchema = CredentialSchemaUtils.createAndWriteCertifiedDIDCredentialSchema(erDID.getDid(), erWallet, sofiePool);
+            didCertifiedCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDID.getDid(), didCertifiedCredentialSchema.getSchemaId(), sofiePool);
+
 
             // 7. Credential definitions creation
 
             Log.i(this.getClass().toString(), "Creating and writing on ledger credential definition for CS-CSO info...");
             AnoncredsResults.IssuerCreateAndStoreCredentialDefResult csoInfoCredentialDefinition = CredentialDefinitionUtils.createAndWriteCSOInfoCredentialDefinition(csoDID.getDid(), csoWallet, csoInfoCredentialSchemaFromLedger.getJSONObject("object"), sofiePool);
-            Log.i(this.getClass().toString(), String.format("Credential definition for CS-CSO info created and written on ledger."));
-
             csoInfoCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDID.getDid(), csoInfoCredentialDefinition.getCredDefId(), sofiePool);
-            Log.i(this.getClass().toString(), String.format("CS-CSO info credential definition fetched from ledger: %s", csoInfoCredentialDefFromLedger));
 
             Log.i(this.getClass().toString(), "Creating and writing on ledger credential definition for CS-DSO district info...");
             AnoncredsResults.IssuerCreateAndStoreCredentialDefResult dsoDistrictCredentialDefinition = CredentialDefinitionUtils.createAndWriteDSODistrictCredentialDefinition(dsoDID.getDid(), dsoWallet, dsoDistrictCredentialSchemaFromLedger.getJSONObject("object"), sofiePool);
-            Log.i(this.getClass().toString(), String.format("Credential definition for CS-DSO district info created and written on ledger."));
-
             dsoDistrictCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(dsoDID.getDid(), dsoDistrictCredentialDefinition.getCredDefId(), sofiePool);
-            Log.i(this.getClass().toString(), String.format("CS-DSO district info credential definition fetched from ledger: %s", dsoDistrictCredentialDefFromLedger));
+
+            Log.w(this.getClass().toString(), "Creating and writing on ledger credential definition for CS DID certification...");
+            AnoncredsResults.IssuerCreateAndStoreCredentialDefResult csDIDCertificationCredentialDefinition = CredentialDefinitionUtils.createAndWriteCSCertifiedDIDCredentialDefinition(csoDID.getDid(), csoWallet, didCertifiedCredentialSchemaFromLedger.getJSONObject("object"), sofiePool);
+            csDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDID.getDid(), csDIDCertificationCredentialDefinition.getCredDefId(), sofiePool);
 
 
             // 8. Credential offers creation
 
             Log.i(this.getClass().toString(), "Creating credential offer for CS-CSO info...");
             JSONObject csoInfoCredentialOffer = CredentialUtils.createCredentialOffer(csoWallet, csoInfoCredentialDefFromLedger.getString("id"));
-            Log.i(this.getClass().toString(), String.format("Credential offer for CS-CSO info created: %s", csoInfoCredentialOffer));
 
             Log.i(this.getClass().toString(), "Creating credential offer for CS-DSO district district info...");
             JSONObject dsoDistrictCredentialOffer = CredentialUtils.createCredentialOffer(dsoWallet, dsoDistrictCredentialDefFromLedger.getString("id"));
-            Log.i(this.getClass().toString(), String.format("Credential offer for CS-DSO district info created: %s", dsoDistrictCredentialOffer));
+
+            Log.w(this.getClass().toString(), "Creating credential offer for CS DID certification...");
+            JSONObject csCertifiedDIDCredentialOffer = CredentialUtils.createCredentialOffer(csoWallet, csDIDCertificationCredentialDefFromLedger.getString("id"));
 
 
             // Creating wallet master secret
@@ -425,6 +471,9 @@ public class IndyService extends Service {
             AnoncredsResults.ProverCreateCredentialRequestResult dsoDistrictCredentialRequest = CredentialUtils.createDSODistrictCredentialRequest(csWallet, csDID.getDid(), dsoDistrictCredentialOffer, dsoDistrictCredentialDefFromLedger.getJSONObject("object"), csMasterSecretID);
             Log.i(this.getClass().toString(), String.format("Credential request for CS-DSO district info created: %s", dsoDistrictCredentialRequest.getCredentialRequestJson()));
 
+            Log.w(this.getClass().toString(), "Creating credential request for CS DID certification...");
+            AnoncredsResults.ProverCreateCredentialRequestResult csCertifiedDIDCredentialRequest = CredentialUtils.createCSCertifiedDIDCredentialRequest(csWallet, csDID.getDid(), csCertifiedDIDCredentialOffer, csDIDCertificationCredentialDefFromLedger.getJSONObject("object"), csMasterSecretID);
+
             // 10. Credentials creation
 
             Log.i(this.getClass().toString(), "Creating credential for CS-CSO info...");
@@ -442,6 +491,11 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Saving credential for CS-DSO district info into CS wallet...");
             WalletUtils.saveCredential(csWallet, new JSONObject(dsoDistrictCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(dsoDistrictCredential.getCredentialJson()), dsoDistrictCredentialDefFromLedger.getJSONObject("object"), dsoDistrictCredential.getRevocRegDeltaJson() != null ? new JSONObject(dsoDistrictCredential.getRevocRegDeltaJson()) : null);
             Log.i(this.getClass().toString(), "Credential for CS-DSO district info saved into CS wallet");
+
+            Log.w(this.getClass().toString(), "Creating credential for CS certified DID...");
+            AnoncredsResults.IssuerCreateCredentialResult csCertifiedDIDCredential = CredentialUtils.createCSCertifiedDIDCredential(csoWallet, csCertifiedDIDCredentialOffer, new JSONObject(csCertifiedDIDCredentialRequest.getCredentialRequestJson()), csDID.getDid());
+            Log.w(this.getClass().toString(), "Saving credential for CS certified DID into CS wallet...");
+            WalletUtils.saveCredential(csWallet, new JSONObject(csCertifiedDIDCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(csCertifiedDIDCredential.getCredentialJson()), csDIDCertificationCredentialDefFromLedger.getJSONObject("object"), csCertifiedDIDCredential.getRevocRegDeltaJson() != null ? new JSONObject(csCertifiedDIDCredential.getRevocRegDeltaJson()) : null);
 
 
             Log.i(this.getClass().toString(), "Closing CSO wallet...");
@@ -501,6 +555,26 @@ public class IndyService extends Service {
     }
 
 
+    // Message encrypted for EV and signed by CS
+    private byte [] boxMessage(String plaintext) {
+        try {
+            return CryptoUtils.signAndEncryptMessage(csWallet, csDID.getVerkey(), evVerkey, plaintext.getBytes());
+        } catch (IndyException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private String unboxMessage(byte[] cipherText) {
+        try {
+            return new String(CryptoUtils.decryptAndVerifyMessage(csWallet, csDID.getVerkey(), evVerkey, cipherText));
+        } catch (IndyException e) {
+            e.printStackTrace();
+        } catch (MessageSignatureException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
 
 

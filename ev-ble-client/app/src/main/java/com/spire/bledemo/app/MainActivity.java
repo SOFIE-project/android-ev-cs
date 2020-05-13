@@ -174,7 +174,7 @@ public class MainActivity extends Activity {
 // EV - CS communication message building functions
 
     public void sendDID() {
-        String message = mIndyService.createEVdidAndCSOProofRequest();
+        byte[] message = mIndyService.createEVdidAndCSOProofRequest();
         mBluetoothLeService.write(message);
     }
 
@@ -189,7 +189,7 @@ public class MainActivity extends Activity {
 
     //Sends the proof  from file via BLE
     private void sendProof() {
-        String msg = mIndyService.createErChargingProof();
+        byte[] msg = mIndyService.createErChargingProof();
         mBluetoothLeService.write(msg);
 
 /*        try {
@@ -301,7 +301,7 @@ public class MainActivity extends Activity {
                 nextStage(0);
 
             } else if (BluetoothLeService.RX_MSG_RECVD.equals(action)) {
-                String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
+                byte[] msg = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
                 int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, 0);
                 if (stage == 0) {
                     mIndyService.parseAndSaveCsDid1(msg);
@@ -313,7 +313,7 @@ public class MainActivity extends Activity {
                     nextStage(3);
                     sendProof();
                     nextStage(4);
-                    //closeConnection();
+                    startEVCharging();
                 } else {
                     writeLine("Unexpected Message Received");
                 }
@@ -322,6 +322,18 @@ public class MainActivity extends Activity {
             }
         }
     };
+
+    private void startEVCharging() {
+        byte[] commitment = mIndyService.createCommitment();
+        mBluetoothLeService.write(commitment);
+        nextStage(5);
+        for (int i=1; i<=10;i++) {
+            byte[] mircoCharge = mIndyService.createMicroChargeRequest(i);
+            mBluetoothLeService.write(mircoCharge);
+            nextStage(5);
+            updatePieProgress(i*10);
+        }
+    }
 
 
     public void closeConnection() {

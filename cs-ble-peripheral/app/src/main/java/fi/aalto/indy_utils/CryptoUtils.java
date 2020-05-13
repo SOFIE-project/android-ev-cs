@@ -3,6 +3,7 @@ package fi.aalto.indy_utils;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.crypto.Crypto;
 import org.hyperledger.indy.sdk.crypto.CryptoResults;
+import org.hyperledger.indy.sdk.did.Did;
 import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -18,7 +19,7 @@ public class CryptoUtils {
      * @return the generated key, after it has been saved in the given wallet. The key can be used to sign messages from and/or encrypt messages to the wallet owner.
      * @throws IndyException
      */
-    public static String generateKey(Wallet storageWallet) throws IndyException {
+    public static String generateAndStoreKey(Wallet storageWallet) throws IndyException {
         String key = null;
 
         try {
@@ -36,9 +37,9 @@ public class CryptoUtils {
      * @return the generated key, after it has been saved in the given wallet. The key can be used to sign messages from and/or encrypt messages to the wallet owner.
      * @throws IndyException
      */
-    public static String generateKey(Wallet storageWallet, String seed) throws IndyException, KeyExistingException {
+    public static String generateAndStoreKey(Wallet storageWallet, String seed) throws IndyException, KeyExistingException {
         if (seed == null) {
-            return CryptoUtils.generateKey(storageWallet);
+            return CryptoUtils.generateAndStoreKey(storageWallet);
         }
 
         String key = null;
@@ -49,7 +50,11 @@ public class CryptoUtils {
         } catch (JSONException e) {
             e.printStackTrace();
         } catch (InterruptedException | ExecutionException e) {
-            throw new KeyExistingException(String.format("Key with seed %d already exists in specified wallet"));
+            // Seed already used, return the result of generating the verkey from the given seed.
+            try {
+                key = Did.createAndStoreMyDid(storageWallet, new JSONObject().put("seed", seed).toString()).get().getVerkey();
+            } catch (Exception ignored) {
+            }
         }
 
         return key;

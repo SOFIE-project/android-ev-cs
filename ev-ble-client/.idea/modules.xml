@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/ev-ble-client.iml" filepath="$PROJECT_DIR$/ev-ble-client.iml" />
+      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" group="ev-ble-client/app" />
+      <module fileurl="file://$PROJECT_DIR$/ev-ble-client.iml" filepath="$PROJECT_DIR$/ev-ble-client.iml" group="ev-ble-client" />
     </modules>
   </component>
 </project>

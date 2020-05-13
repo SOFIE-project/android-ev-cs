@@ -14,6 +14,7 @@ public final class ProofUtils {
     public static final String CSO_INFO_PROOF_REQUEST_REFERENT = "CSO";
     public static final String DSO_DISTRICT_PROOF_REQUEST_REFERENT = "district";
     public static final String ER_CHARGING_PROOF_REQUEST_REFERENT = "charging";
+    public static final String CERTIFIED_DID_PROOF_REQUEST_REFERENT = "did";
 
     private ProofUtils() {}
 
@@ -28,12 +29,17 @@ public final class ProofUtils {
      * @return the JSON containing the proof request for CSO Info + DSO District Info credentials.
      * @throws IndyException
      */
-    public static JSONObject createCSOInfoAndDSODistrictProofRequest(String csoDID, String dsoDID, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID) throws IndyException {
+    public static JSONObject createCSOInfoAndDSODistrictAndCertifiedDIDProofRequest(String csoDID, String dsoDID, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID, String csCertifiedDIDCredentialDefinitionID) throws IndyException {
         JSONObject proofRequest = null;
         try {
             JSONArray csoInfoRestrictionsList = new JSONArray()
                     .put(new JSONObject()
                             .put("cred_def_id", csoInfoCredentialDefinitionID)
+                            .put("issuer_did", csoDID)
+                    );
+            JSONArray csDIDCertificationRestrictionsList = new JSONArray()
+                    .put(new JSONObject()
+                            .put("cred_def_id", csCertifiedDIDCredentialDefinitionID)
                             .put("issuer_did", csoDID)
                     );
             JSONArray dsoDistrictRestrictionsList = new JSONArray()
@@ -54,6 +60,10 @@ public final class ProofUtils {
                                     .put("names", new JSONArray(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES))
                                     .put("restrictions", dsoDistrictRestrictionsList)
                             )
+                            .put(CERTIFIED_DID_PROOF_REQUEST_REFERENT, new JSONObject()
+                                    .put("names", new JSONArray(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES))
+                                    .put("restrictions", csDIDCertificationRestrictionsList)
+                            )
                     );
         } catch (JSONException | ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -67,12 +77,17 @@ public final class ProofUtils {
      * @return the JSON containing the proof request for ER Charging credential.
      * @throws IndyException
      */
-    public static JSONObject createERChargingProofRequest(String erDID, String erChargingCredentialDefinitionID) throws IndyException {
+    public static JSONObject createERChargingAndCertifiedDIDProofRequest(String erDID, String erChargingCredentialDefinitionID, String evCertifiedDIDCredentialDefinitionID) throws IndyException {
         JSONObject proofRequest = null;
         try {
             JSONArray erInfoRestrictionsList = new JSONArray()
                     .put(new JSONObject()
                             .put("cred_def_id", erChargingCredentialDefinitionID)
+                            .put("issuer_did", erDID)
+                    );
+            JSONArray evCertifiedDIDRestrictionsList = new JSONArray()
+                    .put(new JSONObject()
+                            .put("cred_def_id", evCertifiedDIDCredentialDefinitionID)
                             .put("issuer_did", erDID)
                     );
             proofRequest = new JSONObject()
@@ -83,6 +98,10 @@ public final class ProofUtils {
                             .put(ER_CHARGING_PROOF_REQUEST_REFERENT, new JSONObject()
                                     .put("names", new JSONArray(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES))
                                     .put("restrictions", erInfoRestrictionsList)
+                            )
+                            .put(CERTIFIED_DID_PROOF_REQUEST_REFERENT, new JSONObject()
+                                    .put("names", new JSONArray(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES))
+                                    .put("restrictions", evCertifiedDIDRestrictionsList)
                             )
                     );
         } catch (JSONException | ExecutionException | InterruptedException e) {
@@ -109,22 +128,24 @@ public final class ProofUtils {
      * @return the proof for the CSO Info + DSO District Info proof request.
      * @throws IndyException
      */
-    public static JSONObject createProofCSOInfoDSODistrictProofRequest(Wallet csWallet, JSONObject csoInfodsoDistrictProofRequest, JSONObject csoInfodsoDistrictProofCredentials, String csMasterSecretID, String csoInfoCredentialSchemaID, String dsoDistrictCredentialSchemaID, JSONObject csoInfoCredentialSchema, JSONObject dsoDistrictCredentialSchema, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID, JSONObject csoInfoCredentialDefinition, JSONObject dsoDistrictCredentialDefinition) throws IndyException {
+    public static JSONObject createProofCSOInfoDSODistrictDIDCertifiedProofRequest(Wallet csWallet, JSONObject csoInfodsoDistrictCertifiedDIDProofRequest, JSONObject csoInfodsoDistrictCertifiedDIDProofCredentials, String csMasterSecretID, String csoInfoCredentialSchemaID, String dsoDistrictCredentialSchemaID, String certifiedDIDCredentialSchemaID, JSONObject csoInfoCredentialSchema, JSONObject dsoDistrictCredentialSchema, JSONObject certifiedDIDCredentialSchema, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID, String csCertifiedDIDCredentialDefinitionID, JSONObject csoInfoCredentialDefinition, JSONObject dsoDistrictCredentialDefinition, JSONObject csCertifiedDIDCredentialDefinition) throws IndyException {
         JSONObject proof = null;
         try {
             proof = new JSONObject(
                     Anoncreds.proverCreateProof(
                             csWallet,
-                            csoInfodsoDistrictProofRequest.toString(),
-                            csoInfodsoDistrictProofCredentials.toString(),
+                            csoInfodsoDistrictCertifiedDIDProofRequest.toString(),
+                            csoInfodsoDistrictCertifiedDIDProofCredentials.toString(),
                             csMasterSecretID,
                             new JSONObject()
                                     .put(csoInfoCredentialSchemaID, csoInfoCredentialSchema)
                                     .put(dsoDistrictCredentialSchemaID, dsoDistrictCredentialSchema)
+                                    .put(certifiedDIDCredentialSchemaID, certifiedDIDCredentialSchema)
                                     .toString(),
                             new JSONObject()
                                     .put(csoInfoCredentialDefinitionID, csoInfoCredentialDefinition)
                                     .put(dsoDistrictCredentialDefinitionID, dsoDistrictCredentialDefinition)
+                                    .put(csCertifiedDIDCredentialDefinitionID, csCertifiedDIDCredentialDefinition)
                                     .toString(),
                             new JSONObject().toString()
                     ).get()
@@ -149,20 +170,22 @@ public final class ProofUtils {
      * @return the proof for the ER Charging proof request.
      * @throws IndyException
      */
-    public static JSONObject createProofERChargingProofRequest(Wallet evWallet, JSONObject erChargingProofRequest, JSONObject erChargingProofCredentials, String evMasterSecretID, String erChargingCredentialSchemaID, JSONObject erChargingCredentialSchema, String erChargingCredentialDefinitionID, JSONObject erChargingCredentialDefinition) throws IndyException {
+    public static JSONObject createProofERChargingCertifiedDIDProofRequest(Wallet evWallet, JSONObject erChargingCertifiedDIDProofRequest, JSONObject erChargingCertifiedDIDProofCredentials, String evMasterSecretID, String erChargingCredentialSchemaID, String certifiedDIDSchemaID, JSONObject erChargingCredentialSchema, JSONObject certifiedDIDSchema, String erChargingCredentialDefinitionID, String evCertifiedDIDCredentialDefinitionID, JSONObject erChargingCredentialDefinition, JSONObject evCertifiedDIDCredentialDefinition) throws IndyException {
         JSONObject proof = null;
         try {
             proof = new JSONObject(
                     Anoncreds.proverCreateProof(
                             evWallet,
-                            erChargingProofRequest.toString(),
-                            erChargingProofCredentials.toString(),
+                            erChargingCertifiedDIDProofRequest.toString(),
+                            erChargingCertifiedDIDProofCredentials.toString(),
                             evMasterSecretID,
                             new JSONObject()
                                     .put(erChargingCredentialSchemaID, erChargingCredentialSchema)
+                                    .put(certifiedDIDSchemaID, certifiedDIDSchema)
                                     .toString(),
                             new JSONObject()
                                     .put(erChargingCredentialDefinitionID, erChargingCredentialDefinition)
+                                    .put(evCertifiedDIDCredentialDefinitionID, evCertifiedDIDCredentialDefinition)
                                     .toString(),
                             new JSONObject().toString()
                     ).get()
@@ -178,8 +201,8 @@ public final class ProofUtils {
     // Proof verifications
 
     /**
-     * @param csoInfodsoDistrictProofRequest = result of ProofUtils.createCSOInfoAndDSODistrictProofRequest
-     * @param csoInfodsoDistrictProof = result of ProofUtils.createProofCSOInfoDSODistrictProofRequest
+     * @param csoInfodsoDistrictCertifiedDIDProofRequest = result of ProofUtils.createCSOInfoAndDSODistrictProofRequest
+     * @param csoInfodsoDistrictCertifiedDIDProof = result of ProofUtils.createProofCSOInfoDSODistrictProofRequest
      * @param csoInfoCredentialSchemaID = result of calling getString("id") on the JSON returned by CredentialSchemaUtils.readCredentialSchemaFromLedger for the CSO Info credential schema
      * @param dsoDistrictCredentialSchemaID = result of calling getString("id") on the JSON returned by CredentialSchemaUtils.readCredentialSchemaFromLedger for the DSO District Info credential schema
      * @param csoInfoCredentialSchema = result of calling getJSONObject("object") on the JSON returned by CredentialSchemaUtils.readCredentialSchemaFromLedger for the CSO Info credential schema
@@ -191,19 +214,21 @@ public final class ProofUtils {
      * @return the verification result of the CSO Info + DSO District Info proof for the given proof request.
      * @throws IndyException
      */
-    public static boolean verifyCSOInfoDSODistrictProofCrypto(JSONObject csoInfodsoDistrictProofRequest, JSONObject csoInfodsoDistrictProof, String csoInfoCredentialSchemaID, String dsoDistrictCredentialSchemaID, JSONObject csoInfoCredentialSchema, JSONObject dsoDistrictCredentialSchema, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID, JSONObject csoInfoCredentialDefinition, JSONObject dsoDistrictCredentialDefinition) throws IndyException {
+    public static boolean verifyCSOInfoDSODistrictCertifiedDIDProofCrypto(JSONObject csoInfodsoDistrictCertifiedDIDProofRequest, JSONObject csoInfodsoDistrictCertifiedDIDProof, String csoInfoCredentialSchemaID, String dsoDistrictCredentialSchemaID, String certifiedDIDCredentialSchemaID, JSONObject csoInfoCredentialSchema, JSONObject dsoDistrictCredentialSchema, JSONObject certifiedDIDCredentialSchema, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID, String csCertifiedDIDCredentialDefinitionID, JSONObject csoInfoCredentialDefinition, JSONObject dsoDistrictCredentialDefinition, JSONObject csCertifiedDIDCredentialDefinition) throws IndyException {
         boolean isProofValid = false;
         try {
             isProofValid = Anoncreds.verifierVerifyProof(
-                    csoInfodsoDistrictProofRequest.toString(),
-                    csoInfodsoDistrictProof.toString(),
+                    csoInfodsoDistrictCertifiedDIDProofRequest.toString(),
+                    csoInfodsoDistrictCertifiedDIDProof.toString(),
                     new JSONObject()
                             .put(csoInfoCredentialSchemaID, csoInfoCredentialSchema)
                             .put(dsoDistrictCredentialSchemaID, dsoDistrictCredentialSchema)
+                            .put(certifiedDIDCredentialSchemaID, certifiedDIDCredentialSchema)
                             .toString(),
                     new JSONObject()
                             .put(csoInfoCredentialDefinitionID, csoInfoCredentialDefinition)
                             .put(dsoDistrictCredentialDefinitionID, dsoDistrictCredentialDefinition)
+                            .put(csCertifiedDIDCredentialDefinitionID, csCertifiedDIDCredentialDefinition)
                             .toString(),
                     new JSONObject().toString(),
                     new JSONObject().toString()
@@ -225,25 +250,30 @@ public final class ProofUtils {
      * @return the result of the credential validation.
      * @throws JSONException
      */
-    public static boolean verifyCSOInfoDSODistrictProofValues(JSONObject proof, String expectedDistrictID, long districtCredentialValidTime, String expectedCSODID, long csoCredentialValidTime) throws JSONException {
+    public static boolean verifyCSOInfoDSODistrictCertifiedDIDProofValues(JSONObject proof, String expectedDistrictID, long districtCredentialValidTime, String expectedCSODID, long csoCredentialValidTime, String expectedCSDID, long csDIDCredentialValidTime) throws JSONException {
         JSONObject proofs = proof.getJSONObject("requested_proof").getJSONObject("revealed_attr_groups");
         JSONObject csoProof = proofs.getJSONObject(ProofUtils.CSO_INFO_PROOF_REQUEST_REFERENT);
+        JSONObject csDIDProof = proofs.getJSONObject(ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT);
         JSONObject dsoProof = proofs.getJSONObject(ProofUtils.DSO_DISTRICT_PROOF_REQUEST_REFERENT);
 
         String csoDID = csoProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[0]).getString("raw");
         long csoValidFrom = Long.valueOf(csoProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[1]).getString("encoded"));
         long csoValidTo = Long.valueOf(csoProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[2]).getString("encoded"));
 
+        String csDID = csDIDProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[0]).getString("raw");
+        long csDIDValidFrom = Long.valueOf(csDIDProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[1]).getString("encoded"));
+        long csDIDValidTo = Long.valueOf(csDIDProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[2]).getString("encoded"));
+
         String districtID = dsoProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[0]).getString("encoded");
         long dsoValidFrom = Long.valueOf(dsoProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[1]).getString("encoded"));
         long dsoValidTo = Long.valueOf(dsoProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[2]).getString("encoded"));
 
-        return csoDID.equals(expectedCSODID) && csoValidFrom <= csoCredentialValidTime && csoValidTo >= csoCredentialValidTime && districtID.equals(expectedDistrictID) && dsoValidFrom <= districtCredentialValidTime && dsoValidTo >= districtCredentialValidTime;
+        return csoDID.equals(expectedCSODID) && csoValidFrom <= csoCredentialValidTime && csoValidTo >= csoCredentialValidTime && csDID.equals(expectedCSDID) &&  csDIDValidFrom <= csDIDCredentialValidTime && csDIDValidTo >= csDIDCredentialValidTime && districtID.equals(expectedDistrictID) && dsoValidFrom <= districtCredentialValidTime && dsoValidTo >= districtCredentialValidTime;
     }
 
     /**
-     * @param erChargingProofRequest = result of ProofUtils.createERChargingProofRequest
-     * @param erChargingDistrictProof = result of ProofUtils.createProofERChargingProofRequest
+     * @param erChargingCertifiedDIDProofRequest = result of ProofUtils.createERChargingProofRequest
+     * @param erChargingDistrictCertifiedDIDProof = result of ProofUtils.createProofERChargingProofRequest
      * @param erChargingCredentialSchemaID = result of calling getString("id") on the JSON returned by CredentialSchemaUtils.readCredentialSchemaFromLedger for the ER Charging credential schema
      * @param erChargingCredentialSchema = result of calling getJSONObject("object") on the JSON returned by CredentialSchemaUtils.readCredentialSchemaFromLedger for the ER Charging credential schema
      * @param erChargingCredentialDefinitionID = result of calling getString("id") on the JSON returned by CredentialDefinitionUtils.readCredentialDefinitionFromLedger for the ER Charging credential definition
@@ -251,17 +281,19 @@ public final class ProofUtils {
      * @return the verification result of the ER Charging proof for the given proof request.
      * @throws IndyException
      */
-    public static boolean verifyERChargingProofCrypto(JSONObject erChargingProofRequest, JSONObject erChargingDistrictProof, String erChargingCredentialSchemaID, JSONObject erChargingCredentialSchema, String erChargingCredentialDefinitionID, JSONObject erChargingCredentialDefinition) throws IndyException {
+    public static boolean verifyERChargingCertifiedDIDProofCrypto(JSONObject erChargingCertifiedDIDProofRequest, JSONObject erChargingDistrictCertifiedDIDProof, String erChargingCredentialSchemaID, String certifiedDIDCredentialSchemaID, JSONObject erChargingCredentialSchema, JSONObject certifiedDIDCredentialSchema, String erChargingCredentialDefinitionID, String evCertifiedDIDCredentialDefinitionID, JSONObject erChargingCredentialDefinition, JSONObject evCertifiedDIDCredentialDefinition) throws IndyException {
         boolean isProofValid = false;
         try {
             isProofValid = Anoncreds.verifierVerifyProof(
-                    erChargingProofRequest.toString(),
-                    erChargingDistrictProof.toString(),
+                    erChargingCertifiedDIDProofRequest.toString(),
+                    erChargingDistrictCertifiedDIDProof.toString(),
                     new JSONObject()
                             .put(erChargingCredentialSchemaID, erChargingCredentialSchema)
+                            .put(certifiedDIDCredentialSchemaID, certifiedDIDCredentialSchema)
                             .toString(),
                     new JSONObject()
                             .put(erChargingCredentialDefinitionID, erChargingCredentialDefinition)
+                            .put(evCertifiedDIDCredentialDefinitionID, evCertifiedDIDCredentialDefinition)
                             .toString(),
                     new JSONObject().toString(),
                     new JSONObject().toString()
@@ -280,13 +312,18 @@ public final class ProofUtils {
      * @return the result of the credential validation.
      * @throws JSONException
      */
-    public static boolean verifyERChargingProofValues(JSONObject proof, long erCredentialValidTime) throws JSONException {
+    public static boolean verifyERChargingCertifiedDIDProofValues(JSONObject proof, long erCredentialValidTime, String expectedevDID, long evCertifiedDIDCredentialValidTime) throws JSONException {
         JSONObject proofs = proof.getJSONObject("requested_proof").getJSONObject("revealed_attr_groups");
         JSONObject erProof = proofs.getJSONObject(ProofUtils.ER_CHARGING_PROOF_REQUEST_REFERENT);
+        JSONObject evCertifiedDIDProof = proofs.getJSONObject(ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT);
 
-        long erValidFrom = Long.valueOf(erProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[1]).getString("encoded"));
-        long erValidTo = Long.valueOf(erProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[2]).getString("encoded"));
+        long erValidFrom = Long.valueOf(erProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[0]).getString("encoded"));
+        long erValidTo = Long.valueOf(erProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[1]).getString("encoded"));
 
-        return erValidFrom <= erCredentialValidTime && erValidTo >= erCredentialValidTime;
+        String evDID = evCertifiedDIDProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[0]).getString("raw");
+        long evDIDValidFrom = Long.valueOf(evCertifiedDIDProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[1]).getString("encoded"));
+        long evDIDValidTo = Long.valueOf(evCertifiedDIDProof.getJSONObject("values").getJSONObject(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[2]).getString("encoded"));
+
+        return erValidFrom <= erCredentialValidTime && erValidTo >= erCredentialValidTime && evDID.equals(expectedevDID) && evDIDValidFrom <= evCertifiedDIDCredentialValidTime && evDIDValidTo >= evCertifiedDIDCredentialValidTime;
     }
 }

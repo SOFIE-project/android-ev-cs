@@ -26,6 +26,7 @@ import android.util.Log;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -235,17 +236,16 @@ public class BluetoothLeService extends Service {
             try {
 
                 if (characteristic.getUuid().equals(RX_UUID)) {
-                    mRxBuffer.add(characteristic.getStringValue(0));
+                    mRxBuffer.add(characteristic.getValue());
 
-                    if (characteristic.getStringValue(0).endsWith("ä")) {
+                    if (characteristic.getValue().length < mtuLength) {
 
-                        String rxMessage = mRxBuffer.extract();
-                        String arxMessage = rxMessage.substring(0, rxMessage.length() - 1);
-                        mCommonUtils.writeLine("wth: |" + arxMessage + "|");
+                        byte[] rxMessage = mRxBuffer.extract();
+                        mCommonUtils.writeLine("recieved mesg from cs: " + rxMessage.length);
                         mCommonUtils.stopTimer();
 
                         int presetStage = chargingProtocolState.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                        broadcastUpdate(RX_MSG_RECVD, presetStage, arxMessage);
+                        broadcastUpdate(RX_MSG_RECVD, presetStage, rxMessage);
                     }
                 }
             } catch (Exception e) {
@@ -350,19 +350,16 @@ public class BluetoothLeService extends Service {
         return true;
     }
 
-    public void longWriteCharacteristic(BluetoothGattCharacteristic bleCharacteristic, String payload) {
+    public void longWriteCharacteristic(byte[] payload) {
         int start = 0;
-        payload = payload + "ä";
 
-        mCommonUtils.writeLine("Stage: " + payload);
-
-        while (start < payload.length()) {
-            int end = Math.min(payload.length(), start + mtuLength);
-            String chunk = payload.substring(start, end);
-
-            safeWriteCharacteristic(bleCharacteristic, chunk);
+        while (start < payload.length) {
+            int end = Math.min(payload.length, start + mtuLength);
+            byte[] chunk = Arrays.copyOfRange(payload,start,end);
+            safeWriteCharacteristic(tx, chunk);
             start += mtuLength;
         }
+
     }
 
 
@@ -382,7 +379,7 @@ public class BluetoothLeService extends Service {
     }
 
 
-    public boolean safeWriteCharacteristic(final BluetoothGattCharacteristic bleCharacteristic, final String payload) {
+    public boolean safeWriteCharacteristic(final BluetoothGattCharacteristic bleCharacteristic, final byte[] payload) {
         if (mBluetoothGatt == null || bleCharacteristic == null) {
             return false;
         }
@@ -397,8 +394,8 @@ public class BluetoothLeService extends Service {
         return true;
     }
 
-    public boolean write(String message) {
-        longWriteCharacteristic(tx, message);
+    public boolean write(byte[] message) {
+        longWriteCharacteristic(message);
         return true;
     }
 
@@ -505,7 +502,7 @@ public class BluetoothLeService extends Service {
         mbleScanner.startScan(targetServices, scanSettings, scanCallback);
     }
 
-    private void broadcastUpdate(final String action, int stage, String msg) {
+    private void broadcastUpdate(final String action, int stage, byte[] msg) {
         final Intent intent = new Intent(action);
         intent.putExtra(CURRENT_STAGE, stage);
         if (msg != null) {
@@ -528,17 +525,7 @@ public class BluetoothLeService extends Service {
         mCommonUtils.clearTimeList();
     }
 
-//        public byte[] delimitLongData(byte[] data) {
-//        ByteArrayOutputStream delimitedStream = null;
-//        try {
-//            delimitedStream = new ByteArrayOutputStream();
-//            delimitedStream.write(data);
-//            delimitedStream.write("ä".getBytes());
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        return delimitedStream.toByteArray();
-//    }
+
 
 //-------------------------------------------------------------------------------------------------
 // BLE service related code

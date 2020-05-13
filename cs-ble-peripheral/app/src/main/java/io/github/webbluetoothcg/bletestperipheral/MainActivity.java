@@ -103,7 +103,7 @@ public class MainActivity extends Activity {
     public void handleEvent(int newState) {
         switch (newState) {
             case 0: // write did to rx
-                String tempDID = mIndyService.createCsDid1();
+                byte[] tempDID = mIndyService.createCsDid1();
                 Log.v(TAG, "Started sending did: " + System.currentTimeMillis());
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID);
                 break;
@@ -113,11 +113,11 @@ public class MainActivity extends Activity {
 
             case 2:
                 // verify the proof request validity or throw error, reset state and disconnect client
-                String msg = mBluetoothLeService.getBLEMessage();
+                byte[] msg = mBluetoothLeService.getBLEMessage();
                 mIndyService.parseEVDIDAndCSOProofRequest(msg);
 
                 // write real DID
-                String tempDID2 = mIndyService.createCSDid2CSOProofAndEVCertificateProofRequest();
+                byte[] tempDID2 = mIndyService.createCSDid2CSOProofAndEVCertificateProofRequest();
                 Log.v(TAG, "Started sending real did: " + System.currentTimeMillis());
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID2);
                 break;
@@ -129,6 +129,12 @@ public class MainActivity extends Activity {
                 // verify EV customer proof
                 msg = mBluetoothLeService.getBLEMessage();
                 mIndyService.verifyErChargingProof(msg);
+                break;
+
+            case 5:
+                msg = mBluetoothLeService.getBLEMessage();
+                int progress = mIndyService.verifyCommitment(msg);
+                updatePieProgress(mPieProgress.getLevel() + progress);
 
                 break;
         }
@@ -159,7 +165,7 @@ public class MainActivity extends Activity {
         chargeProgress = (ImageView) findViewById(R.id.charge_progress);
         chargeProgress.setImageDrawable(mPieProgress);
 
-        updatePieProgress(30);
+        updatePieProgress(0);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 

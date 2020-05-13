@@ -19,16 +19,18 @@ public final class CredentialUtils {
 
     private static final String CS_MASTER_SECRET_ID = "CS-secret";
 
-    private static final String EV_MASTER_SECRET_ID = "EV-secret";
+    public static final String EV_MASTER_SECRET_ID = "EV-secret";
 
     public static final int CS_DISTRICT_ID = 1;
 
     private static SharedPreferences storage;
+    private static boolean force;
 
     private CredentialUtils() {}
 
-    static void initWithAppContext(Context context) {
+    static void initWithAppContext(Context context, boolean force) {
         CredentialUtils.storage = context.getSharedPreferences("credentials", Context.MODE_PRIVATE);
+        CredentialUtils.force = force;
     }
 
     // Master secrets
@@ -70,7 +72,11 @@ public final class CredentialUtils {
      * @throws IndyException
      */
     public static JSONObject createCredentialOffer(Wallet offererWallet, String credentialDefinitionID) throws IndyException {
-        JSONObject credentialOffer = CredentialUtils.retrieveCredentialOffer(credentialDefinitionID);
+        JSONObject credentialOffer = null;
+
+        if (!CredentialUtils.force) {
+            credentialOffer = CredentialUtils.retrieveCredentialOffer(credentialDefinitionID);
+        }
 
         try {
             if (credentialOffer != null) {
@@ -125,7 +131,11 @@ public final class CredentialUtils {
      * @throws IndyException
      */
     public static AnoncredsResults.ProverCreateCredentialRequestResult createCSOInfoCredentialRequest(Wallet csWallet, String csDID, JSONObject csoInfoCredentialOffer, JSONObject csoInfoCredentialDefinition, String csMasterSecretID) throws IndyException {
-        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(csoInfoCredentialOffer);
+        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = null;
+
+        if (!CredentialUtils.force) {
+            credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(csoInfoCredentialOffer);
+        }
 
         try {
             if (credentialRequest != null) {
@@ -142,17 +152,43 @@ public final class CredentialUtils {
         return credentialRequest;
     }
 
+    public static AnoncredsResults.ProverCreateCredentialRequestResult createCSCertifiedDIDCredentialRequest(Wallet csWallet, String csDID, JSONObject csCertifiedDIDCredentialOffer, JSONObject csCertifiedDIDCredentialDefinition, String csMasterSecretID) throws IndyException {
+        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = null;
+
+        if (!CredentialUtils.force) {
+            credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(csCertifiedDIDCredentialOffer);
+        }
+
+        try {
+            if (credentialRequest != null) {
+                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+            } else {
+                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                credentialRequest = Anoncreds.proverCreateCredentialReq(csWallet, csDID, csCertifiedDIDCredentialOffer.toString(), csCertifiedDIDCredentialDefinition.toString(), csMasterSecretID).get();
+                CredentialUtils.saveCredentialRequest(csCertifiedDIDCredentialOffer, credentialRequest);
+                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+            }
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        return credentialRequest;
+    }
+
     /**
      * @param csWallet = result of WalletUtils.openCSWallet
      * @param csDID = result of DIDUtils.createCSDID
      * @param dsoDistrictCredentialOffer = result of CredentialUtils.createCredentialOffer for the DSO District Info credential definition
-     * @param csoInfoCredentialDefinition = result of calling getJSONObject("object") on the JSON returned by CredentialDefinitionUtils.readCredentialDefinitionFromLedger for the DSO District Info credential definition
+     * @param dsoDistrictCredentialDefinition = result of calling getJSONObject("object") on the JSON returned by CredentialDefinitionUtils.readCredentialDefinitionFromLedger for the DSO District Info credential definition
      * @param csMasterSecretID = result of CredentialUtils.createAndSaveCSMasterSecret
      * @return the credential request to obtain a DSO District Info credential.
      * @throws IndyException
      */
     public static AnoncredsResults.ProverCreateCredentialRequestResult createDSODistrictCredentialRequest(Wallet csWallet, String csDID, JSONObject dsoDistrictCredentialOffer, JSONObject dsoDistrictCredentialDefinition, String csMasterSecretID) throws IndyException {
-        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(dsoDistrictCredentialOffer);
+        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = null;
+
+        if (!CredentialUtils.force) {
+            credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(dsoDistrictCredentialOffer);
+        }
 
         try {
             if (credentialRequest != null) {
@@ -179,7 +215,11 @@ public final class CredentialUtils {
      * @throws IndyException
      */
     public static AnoncredsResults.ProverCreateCredentialRequestResult createERChargingCredentialRequest(Wallet evWallet, String evDID, JSONObject erChargingCredentialOffer, JSONObject erChargingCredentialDefinition, String evMasterSecretID) throws IndyException {
-        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(erChargingCredentialOffer);
+        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = null;
+
+        if (!CredentialUtils.force) {
+            credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(erChargingCredentialOffer);
+        }
 
         try {
             if (credentialRequest != null) {
@@ -188,6 +228,28 @@ public final class CredentialUtils {
                 Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
                 credentialRequest = Anoncreds.proverCreateCredentialReq(evWallet, evDID, erChargingCredentialOffer.toString(), erChargingCredentialDefinition.toString(), evMasterSecretID).get();
                 CredentialUtils.saveCredentialRequest(erChargingCredentialOffer, credentialRequest);
+                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+            }
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        return credentialRequest;
+    }
+
+    public static AnoncredsResults.ProverCreateCredentialRequestResult createEVCertifiedDIDCredentialRequest(Wallet evWallet, String evDID, JSONObject evCertifiedDIDCredentialOffer, JSONObject evCertifiedDIDCredentialDefinition, String evMasterSecretID) throws IndyException {
+        AnoncredsResults.ProverCreateCredentialRequestResult credentialRequest = null;
+
+        if (!CredentialUtils.force) {
+            credentialRequest = CredentialUtils.retrieveCredentialRequestForCredentialOffer(evCertifiedDIDCredentialOffer);
+        }
+
+        try {
+            if (credentialRequest != null) {
+                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+            } else {
+                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                credentialRequest = Anoncreds.proverCreateCredentialReq(evWallet, evDID, evCertifiedDIDCredentialOffer.toString(), evCertifiedDIDCredentialDefinition.toString(), evMasterSecretID).get();
+                CredentialUtils.saveCredentialRequest(evCertifiedDIDCredentialOffer, credentialRequest);
                 Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
             }
         } catch (ExecutionException | InterruptedException e) {
@@ -231,7 +293,11 @@ public final class CredentialUtils {
      * @throws IndyException
      */
     public static AnoncredsResults.IssuerCreateCredentialResult createCSOInfoCredential(Wallet csoWallet, JSONObject csoInfoCredentialOffer, JSONObject csoInfoCredentialRequest, String csoDID) throws IndyException {
-        AnoncredsResults.IssuerCreateCredentialResult credential = CredentialUtils.retrieveCredentialForCredentialRequest(csoInfoCredentialRequest);
+        AnoncredsResults.IssuerCreateCredentialResult credential = null;
+
+        if (!CredentialUtils.force) {
+            CredentialUtils.retrieveCredentialForCredentialRequest(csoInfoCredentialRequest);
+        }
 
         try {
             if (credential != null) {
@@ -239,20 +305,57 @@ public final class CredentialUtils {
             } else {
                 Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject csoInfoCredentialContent = new JSONObject()
-                        .put("cso", new JSONObject()
+                        .put(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", csoDID)
                                 .put("encoded", String.format("%d", csoDID.hashCode()))
                         )
-                        .put("valid_from", new JSONObject()
+                        .put(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[1], new JSONObject()
                                 .put("raw", "0")
                                 .put("encoded", "0")
                         )
-                        .put("valid_until", new JSONObject()
+                        .put(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[2], new JSONObject()
                                 .put("raw", "2")
                                 .put("encoded", "2")
                         );
                 credential = Anoncreds.issuerCreateCredential(csoWallet, csoInfoCredentialOffer.toString(), csoInfoCredentialRequest.toString(), csoInfoCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(csoInfoCredentialRequest, credential);
+                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        return credential;
+    }
+
+    public static AnoncredsResults.IssuerCreateCredentialResult createCSCertifiedDIDCredential(Wallet csoWallet, JSONObject csCertifiedDIDCredentialOffer, JSONObject csCertifiedDIDCredentialRequest, String csDID) throws IndyException {
+        AnoncredsResults.IssuerCreateCredentialResult credential = null;
+
+        if (!CredentialUtils.force) {
+            CredentialUtils.retrieveCredentialForCredentialRequest(csCertifiedDIDCredentialRequest);
+        }
+
+        try {
+            if (credential != null) {
+                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+            } else {
+                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                JSONObject csDIDCredentialContent = new JSONObject()
+                        .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
+                                .put("raw", csDID)
+                                .put("encoded", String.format("%d", csDID.hashCode()))
+                        )
+                        .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[1], new JSONObject()
+                                .put("raw", "0")
+                                .put("encoded", "0")
+                        )
+                        .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[2], new JSONObject()
+                                .put("raw", "2")
+                                .put("encoded", "2")
+                        );
+                credential = Anoncreds.issuerCreateCredential(csoWallet, csCertifiedDIDCredentialOffer.toString(), csCertifiedDIDCredentialRequest.toString(), csDIDCredentialContent.toString(), null, -1).get();
+                CredentialUtils.saveCredential(csCertifiedDIDCredentialRequest, credential);
                 Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
@@ -271,7 +374,11 @@ public final class CredentialUtils {
      * @throws IndyException
      */
     public static AnoncredsResults.IssuerCreateCredentialResult createDSODistrictCredential(Wallet dsoWallet, JSONObject dsoDistrictCredentialOffer, JSONObject dsoDistrictCredentialRequest) throws IndyException {
-        AnoncredsResults.IssuerCreateCredentialResult credential = CredentialUtils.retrieveCredentialForCredentialRequest(dsoDistrictCredentialRequest);
+        AnoncredsResults.IssuerCreateCredentialResult credential = null;
+
+        if (!CredentialUtils.force) {
+            CredentialUtils.retrieveCredentialForCredentialRequest(dsoDistrictCredentialRequest);
+        }
 
         try {
             if (credential != null) {
@@ -279,15 +386,15 @@ public final class CredentialUtils {
             } else {
                 Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject dsoDistrictCredentialContent = new JSONObject()
-                        .put("district_id", new JSONObject()
+                        .put(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", String.format("%d", CredentialUtils.CS_DISTRICT_ID))
                                 .put("encoded", String.format("%d", CredentialUtils.CS_DISTRICT_ID))
                         )
-                        .put("valid_from", new JSONObject()
+                        .put(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[1], new JSONObject()
                                 .put("raw", "0")
                                 .put("encoded", "0")
                         )
-                        .put("valid_until", new JSONObject()
+                        .put(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[2], new JSONObject()
                                 .put("raw", "2")
                                 .put("encoded", "2")
                         );
@@ -312,7 +419,11 @@ public final class CredentialUtils {
      * @throws IndyException
      */
     public static AnoncredsResults.IssuerCreateCredentialResult createERChargingCredential(Wallet erWallet, String evDID, JSONObject erChargingCredentialOffer, JSONObject erChargingCredentialRequest) throws IndyException {
-        AnoncredsResults.IssuerCreateCredentialResult credential = CredentialUtils.retrieveCredentialForCredentialRequest(erChargingCredentialRequest);
+        AnoncredsResults.IssuerCreateCredentialResult credential = null;
+
+        if (!CredentialUtils.force) {
+            CredentialUtils.retrieveCredentialForCredentialRequest(erChargingCredentialRequest);
+        }
 
         try {
             if (credential != null) {
@@ -320,20 +431,53 @@ public final class CredentialUtils {
             } else {
                 Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject evChargingCredentialContent = new JSONObject()
-                        .put("ev", new JSONObject()
-                                .put("raw", evDID)
-                                .put("encoded", String.format("%d", evDID.hashCode()))
-                        )
-                        .put("valid_from", new JSONObject()
+                        .put(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", "0")
                                 .put("encoded", "0")
                         )
-                        .put("valid_until", new JSONObject()
+                        .put(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[1], new JSONObject()
                                 .put("raw", "2")
                                 .put("encoded", "2")
                         );
                 credential = Anoncreds.issuerCreateCredential(erWallet, erChargingCredentialOffer.toString(), erChargingCredentialRequest.toString(), evChargingCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(erChargingCredentialRequest, credential);
+                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        return credential;
+    }
+
+    public static AnoncredsResults.IssuerCreateCredentialResult createEVCertifiedDIDCredential(Wallet erWallet, String evDID, JSONObject evCertifiedDIDCredentialOffer, JSONObject evCertifiedDIDCredentialRequest) throws IndyException {
+        AnoncredsResults.IssuerCreateCredentialResult credential = null;
+
+        if (!CredentialUtils.force) {
+            CredentialUtils.retrieveCredentialForCredentialRequest(evCertifiedDIDCredentialRequest);
+        }
+
+        try {
+            if (credential != null) {
+                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+            } else {
+                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                JSONObject evChargingCredentialContent = new JSONObject()
+                        .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
+                                .put("raw", evDID)
+                                .put("encoded", String.format("%d", evDID.hashCode()))
+                        )
+                        .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[1], new JSONObject()
+                                .put("raw", "0")
+                                .put("encoded", "0")
+                        )
+                        .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[2], new JSONObject()
+                                .put("raw", "2")
+                                .put("encoded", "2")
+                        );
+                credential = Anoncreds.issuerCreateCredential(erWallet, evCertifiedDIDCredentialOffer.toString(), evCertifiedDIDCredentialRequest.toString(), evChargingCredentialContent.toString(), null, -1).get();
+                CredentialUtils.saveCredential(evCertifiedDIDCredentialRequest, credential);
                 Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
@@ -381,12 +525,13 @@ public final class CredentialUtils {
      * @return the predicates, obtained from the credentials in the wallet, to generate a proof for CSO Info and DSO District information.
      * @throws IndyException
      */
-    public static JSONObject getPredicatesForCSOInfoDSODistrictProofRequest(Wallet csWallet, JSONObject csoInfodsoDistrictProofRequest, boolean revealed) throws IndyException {
+    public static JSONObject getPredicatesForCSOInfoDSODistrictCertifiedDIDProofRequest(Wallet csWallet, JSONObject csoInfodsoDistrictProofRequest, boolean revealed) throws IndyException {
         JSONObject credentialPredicates = null;
         try {
             CredentialsSearchForProofReq credentialsSearch = CredentialsSearchForProofReq.open(csWallet, csoInfodsoDistrictProofRequest.toString(), null).get();
             JSONObject credentialForCSO = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.CSO_INFO_PROOF_REQUEST_REFERENT);
             JSONObject credentialForDSODistrict = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.DSO_DISTRICT_PROOF_REQUEST_REFERENT);
+            JSONObject credentialForCertifiedDID = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT);
             credentialsSearch.close();
 
             credentialPredicates = new JSONObject()
@@ -399,6 +544,10 @@ public final class CredentialUtils {
                             )
                             .put(ProofUtils.DSO_DISTRICT_PROOF_REQUEST_REFERENT, new JSONObject()
                                     .put("cred_id", credentialForDSODistrict.getString("referent"))
+                                    .put("revealed", revealed)
+                            )
+                            .put(ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT, new JSONObject()
+                                    .put("cred_id", credentialForCertifiedDID.getString("referent"))
                                     .put("revealed", revealed)
                             )
                     );
@@ -419,11 +568,12 @@ public final class CredentialUtils {
      * @return the predicates, obtained from the credentials in the wallet, to generate a proof to prove authorisation to charge.
      * @throws IndyException
      */
-    public static JSONObject getPredicatesForERChargingProofRequest(Wallet evWallet, JSONObject erChargingProofRequest, boolean revealed) throws IndyException {
+    public static JSONObject getPredicatesForERChargingCertifiedDIDProofRequest(Wallet evWallet, JSONObject erChargingProofRequest, boolean revealed) throws IndyException {
         JSONObject credentialPredicates = null;
         try {
             CredentialsSearchForProofReq credentialsSearch = CredentialsSearchForProofReq.open(evWallet, erChargingProofRequest.toString(), null).get();
             JSONObject credentialERProof = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.ER_CHARGING_PROOF_REQUEST_REFERENT);
+            JSONObject credentialCertifiedDIDProof = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT);
             credentialsSearch.close();
 
             credentialPredicates = new JSONObject()
@@ -432,6 +582,10 @@ public final class CredentialUtils {
                     .put("requested_attributes", new JSONObject()
                             .put(ProofUtils.ER_CHARGING_PROOF_REQUEST_REFERENT, new JSONObject()
                                     .put("cred_id", credentialERProof.getString("referent"))
+                                    .put("revealed", revealed)
+                            )
+                            .put(ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT, new JSONObject()
+                                    .put("cred_id", credentialCertifiedDIDProof.getString("referent"))
                                     .put("revealed", revealed)
                             )
                     );

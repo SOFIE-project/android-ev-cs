@@ -36,4 +36,5 @@ dependencies {
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.0.0'
     implementation 'org.slf4j:slf4j-simple:1.6.1'
     implementation "commons-io:commons-io:2.6"
+    implementation "org.bitcoinj:bitcoinj-core:0.15.8"
 }

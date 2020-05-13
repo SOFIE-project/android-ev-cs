@@ -21,23 +21,30 @@ public final class CredentialSchemaUtils {
 
 
     public static final String CSO_INFO_CREDENTIAL_SCHEMA_NAME = "CSO-Info-Credential-Schema";
-    private static final String CSO_INFO_CREDENTIAL_SCHEMA_VERSION = "2.1";
-    static final String[] CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES = new String[]{"cso", "valid_from", "valid_until"};
+    private static final String CSO_INFO_CREDENTIAL_SCHEMA_VERSION = "10.0";
+    static final String[] CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES = new String[]{"cso_did", "valid_from", "valid_until"};
 
     public static final String DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME = "DSO-District-Credential-Schema";
-    private static final String DSO_DISTRICT_CREDENTIAL_SCHEMA_VERSION = "2.1";
+    private static final String DSO_DISTRICT_CREDENTIAL_SCHEMA_VERSION = "10.0";
     static final String[] DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES = new String[]{"district_id", "valid_from", "valid_until"};
 
     public static final String ER_CHARGING_CREDENTIAL_SCHEMA_NAME = "ER-Charging-Credential-Schema";
-    private static final String ER_CHARGING_CREDENTIAL_SCHEMA_VERSION = "3.1";
-    static final String[] ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES = new String[]{"ev", "valid_from", "valid_until"};
+    private static final String ER_CHARGING_CREDENTIAL_SCHEMA_VERSION = "10.0";
+    static final String[] ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES = new String[]{"valid_from", "valid_until"};
+
+    // Common to both CS and EV
+    public static final String CERTIFIED_DID_SCHEMA_NAME = "CS-DID-Credential-Schema";
+    private static final String CERTIFIED_DID_CREDENTIAL_SCHEMA_VERSION = "10.1";
+    static final String[] CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES = new String[]{"did", "valid_from", "valid_until"};
 
     private static SharedPreferences storage;
+    private static boolean force;
 
     private CredentialSchemaUtils() {}
 
-    static void initWithAppContext(Context context) {
+    static void initWithAppContext(Context context, boolean force) {
         CredentialSchemaUtils.storage = context.getSharedPreferences("credential-schemas", Context.MODE_PRIVATE);
+        CredentialSchemaUtils.force = force;
     }
 
     /**
@@ -50,7 +57,11 @@ public final class CredentialSchemaUtils {
      */
     public static AnoncredsResults.IssuerCreateSchemaResult createAndWriteCSOInfoCredentialSchema(String csoDID, Wallet csoWallet, Pool targetPool) throws IndyException, LedgerWriteException {
 
-        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_NAME);
+        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
+
+        if (!CredentialSchemaUtils.force) {
+            credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_NAME);
+        }
 
         try {
             if (credentialSchema != null) {
@@ -89,7 +100,11 @@ public final class CredentialSchemaUtils {
      */
     public static AnoncredsResults.IssuerCreateSchemaResult createAndWriteDSODistrictCredentialSchema(String dsoDID, Wallet dsoWallet, Pool targetPool) throws IndyException, LedgerWriteException {
 
-        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME);
+        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
+
+        if (CredentialSchemaUtils.force) {
+            CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME);
+        }
 
         try {
             if (credentialSchema != null) {
@@ -128,7 +143,11 @@ public final class CredentialSchemaUtils {
      */
     public static AnoncredsResults.IssuerCreateSchemaResult createAndWriteERChargingCredentialSchema(String erDID, Wallet erWallet, Pool targetPool) throws IndyException, LedgerWriteException {
 
-        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_NAME);
+        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
+
+        if (!CredentialSchemaUtils.force) {
+            CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_NAME);
+        }
 
         try {
             if (credentialSchema != null) {
@@ -141,6 +160,41 @@ public final class CredentialSchemaUtils {
                 Log.d(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
                 JSONObject credentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(erDID, credentialSchema.getSchemaJson()).get());
                 JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, erWallet, erDID, credentialsSchemaNymRequest.toString()).get());
+
+                if (!LedgerUtils.isLedgerResponseValid(requestResult)) {
+                    String ledgerError = LedgerUtils.getErrorMessage(requestResult);
+                    if (!ledgerError.contains("UnauthorizedClientRequest")) {
+                        throw new LedgerWriteException(ledgerError);
+                    }
+                }
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        return credentialSchema;
+    }
+
+    public static AnoncredsResults.IssuerCreateSchemaResult createAndWriteCertifiedDIDCredentialSchema(String certifierDID, Wallet certifierWallet, Pool targetPool) throws IndyException, LedgerWriteException {
+
+        AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
+
+        if (!CredentialSchemaUtils.force) {
+            CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME);
+        }
+
+        try {
+            if (credentialSchema != null) {
+                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
+            } else {
+                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
+                JSONArray attributesAsJSON = new JSONArray(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES);
+                credentialSchema = Anoncreds.issuerCreateSchema(certifierDID, CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME, CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_VERSION, attributesAsJSON.toString()).get();
+                CredentialSchemaUtils.saveCredentialSchema(CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME, credentialSchema);
+                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
+                JSONObject credentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(certifierDID, credentialSchema.getSchemaJson()).get());
+                JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, certifierWallet, certifierDID, credentialsSchemaNymRequest.toString()).get());
 
                 if (!LedgerUtils.isLedgerResponseValid(requestResult)) {
                     String ledgerError = LedgerUtils.getErrorMessage(requestResult);

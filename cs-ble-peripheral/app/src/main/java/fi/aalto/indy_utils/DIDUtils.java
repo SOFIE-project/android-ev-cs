@@ -2,6 +2,7 @@ package fi.aalto.indy_utils;
 
 import android.util.Log;
 
+import org.bitcoinj.core.Base58;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.did.Did;
 import org.hyperledger.indy.sdk.did.DidJSONParameters;
@@ -12,6 +13,7 @@ import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
 public final class DIDUtils {
@@ -168,5 +170,10 @@ public final class DIDUtils {
             e.printStackTrace();
         }
         return did;
+    }
+
+    public static String getDIDForVerkey(String verkey) {
+        byte[] didValue = Arrays.copyOfRange(Base58.decode(verkey), 0, 16);
+        return Base58.encode(didValue);
     }
 }
