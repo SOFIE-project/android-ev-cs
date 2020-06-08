@@ -8,6 +8,7 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
+import org.bouncycastle.crypto.DigestDerivationFunction;
 import org.hyperledger.indy.sdk.LibIndy;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -51,6 +52,7 @@ public final class IndyUtils {
         CredentialDefinitionUtils.initWithAppContext(context, force);
         CredentialSchemaUtils.initWithAppContext(context, force);
         CredentialUtils.initWithAppContext(context, force);
+        DIDUtils.initWithAppContext(context, force);
     }
 
     private static void initialiseDirectories(Context c) throws IOException, ErrnoException {
@@ -67,6 +69,11 @@ public final class IndyUtils {
     }
 
     private static void writePoolConfigFile() throws IOException {
+        File poolsFolder = new File(IndyUtils.getPoolsPath());
+        if (poolsFolder.exists()) {
+            return;
+        }
+        poolsFolder.mkdirs();
         String formattedFileSyntax = IndyUtils.formatConfigJSONForFileWrite(IndyUtils.POOL_CONFIG);
 
         String poolConfigFilePath = IndyUtils.getPoolConfigPath();
@@ -100,24 +107,32 @@ public final class IndyUtils {
     }
 
     /**
-     * @return the path where the transactions genesis file is stored.
-     */
-    public static String getPoolConfigPath() {
-        return IndyUtils.getFilesPath() + "/pool_transactions_genesis";
-    }
-
-    /**
      * @return the path where the app stored all the needed files.
      */
     public static String getFilesPath() {
-        return IndyUtils.LIBINDY_PATH;
+        return IndyUtils.LIBINDY_PATH + "/files";
     }
 
     /**
      * @return the path where the tails files for credentials revocation are stored.
      */
     public static String getTailsFilePath() {
-        return IndyUtils.getFilesPath() + "/tails";
+        return IndyUtils.LIBINDY_PATH + "/tails";
+    }
+
+    public static String getPoolsPath() {
+        return IndyUtils.LIBINDY_PATH + "/pools";
+    }
+
+    /**
+     * @return the path where the transactions genesis file is stored.
+     */
+    public static String getPoolConfigPath() {
+        return IndyUtils.getPoolsPath() + "/pool_transactions_genesis";
+    }
+
+    static String getWalletsPath() {
+        return IndyUtils.LIBINDY_PATH + "/wallets";
     }
 
 }

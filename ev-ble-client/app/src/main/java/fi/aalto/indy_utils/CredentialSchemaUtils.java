@@ -65,13 +65,13 @@ public final class CredentialSchemaUtils {
 
         try {
             if (credentialSchema != null) {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
             } else {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
                 JSONArray attributesAsJSON = new JSONArray(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES);
                 credentialSchema = Anoncreds.issuerCreateSchema(csoDID, CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_NAME, CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_VERSION, attributesAsJSON.toString()).get();
                 CredentialSchemaUtils.saveCredentialSchema(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_NAME, credentialSchema);
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
                 JSONObject csoInfoCredentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(csoDID, credentialSchema.getSchemaJson()).get());
                 JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, csoWallet, csoDID, csoInfoCredentialsSchemaNymRequest.toString()).get());
 
@@ -102,19 +102,19 @@ public final class CredentialSchemaUtils {
 
         AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
 
-        if (CredentialSchemaUtils.force) {
-            CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME);
+        if (!CredentialSchemaUtils.force) {
+            credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME);
         }
 
         try {
             if (credentialSchema != null) {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
             } else {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
                 JSONArray attributesAsJSON = new JSONArray(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES);
                 credentialSchema = Anoncreds.issuerCreateSchema(dsoDID, CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME, CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_VERSION, attributesAsJSON.toString()).get();
                 CredentialSchemaUtils.saveCredentialSchema(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_NAME, credentialSchema);
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
                 JSONObject credentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(dsoDID, credentialSchema.getSchemaJson()).get());
                 JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, dsoWallet, dsoDID, credentialsSchemaNymRequest.toString()).get());
 
@@ -146,18 +146,18 @@ public final class CredentialSchemaUtils {
         AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
 
         if (!CredentialSchemaUtils.force) {
-            CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_NAME);
+            credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_NAME);
         }
 
         try {
             if (credentialSchema != null) {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
             } else {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
                 JSONArray attributesAsJSON = new JSONArray(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES);
                 credentialSchema = Anoncreds.issuerCreateSchema(erDID, CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_NAME, CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_VERSION, attributesAsJSON.toString()).get();
                 CredentialSchemaUtils.saveCredentialSchema(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_NAME, credentialSchema);
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
                 JSONObject credentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(erDID, credentialSchema.getSchemaJson()).get());
                 JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, erWallet, erDID, credentialsSchemaNymRequest.toString()).get());
 
@@ -181,18 +181,18 @@ public final class CredentialSchemaUtils {
         AnoncredsResults.IssuerCreateSchemaResult credentialSchema = null;
 
         if (!CredentialSchemaUtils.force) {
-            CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME);
+            credentialSchema = CredentialSchemaUtils.retrieveCredentialSchema(CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME);
         }
 
         try {
             if (credentialSchema != null) {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema retrieved from cache.");
             } else {
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema not found in cache. Generating...");
                 JSONArray attributesAsJSON = new JSONArray(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES);
                 credentialSchema = Anoncreds.issuerCreateSchema(certifierDID, CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME, CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_VERSION, attributesAsJSON.toString()).get();
                 CredentialSchemaUtils.saveCredentialSchema(CredentialSchemaUtils.CERTIFIED_DID_SCHEMA_NAME, credentialSchema);
-                Log.d(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
+                Log.w(CredentialSchemaUtils.class.toString(), "Credential schema saved in cache.");
                 JSONObject credentialsSchemaNymRequest = new JSONObject(Ledger.buildSchemaRequest(certifierDID, credentialSchema.getSchemaJson()).get());
                 JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, certifierWallet, certifierDID, credentialsSchemaNymRequest.toString()).get());
 

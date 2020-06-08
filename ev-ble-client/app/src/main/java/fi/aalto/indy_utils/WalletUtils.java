@@ -1,5 +1,7 @@
 package fi.aalto.indy_utils;
 
+import android.util.Log;
+
 import androidx.annotation.Nullable;
 
 import org.hyperledger.indy.sdk.IndyException;
@@ -8,9 +10,12 @@ import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.util.concurrent.ExecutionException;
 
 public final class WalletUtils {
+
+    private static JSONObject DEFAULT_WALLTES_CONFIG;
 
     private static JSONObject EV_WALLET_CONFIG;
     private static JSONObject CSO_WALLET_CONFIG;
@@ -23,12 +28,14 @@ public final class WalletUtils {
 
     static {
         try {
-            WalletUtils.EV_WALLET_CONFIG = new JSONObject().put("id", "evWallet");
-            WalletUtils.CSO_WALLET_CONFIG = new JSONObject().put("id", "csoWallet");
-            WalletUtils.DSO_WALLET_CONFIG = new JSONObject().put("id", "dsoWallet");
-            WalletUtils.CS_WALLET_CONFIG = new JSONObject().put("id", "csWallet");
-            WalletUtils.ER_WALLET_CONFIG = new JSONObject().put("id", "erWallet");
-            WalletUtils.CSO_STEWARD_WALLET_CONFIG = new JSONObject().put("id", "csoStewardWallet");
+            WalletUtils.DEFAULT_WALLTES_CONFIG = new JSONObject().put("path", IndyUtils.getWalletsPath());
+
+            WalletUtils.EV_WALLET_CONFIG = new JSONObject().put("id", "evWallet").put("storage_config", WalletUtils.DEFAULT_WALLTES_CONFIG);
+            WalletUtils.CSO_WALLET_CONFIG = new JSONObject().put("id", "csoWallet").put("storage_config", WalletUtils.DEFAULT_WALLTES_CONFIG);
+            WalletUtils.DSO_WALLET_CONFIG = new JSONObject().put("id", "dsoWallet").put("storage_config", WalletUtils.DEFAULT_WALLTES_CONFIG);
+            WalletUtils.CS_WALLET_CONFIG = new JSONObject().put("id", "csWallet").put("storage_config", WalletUtils.DEFAULT_WALLTES_CONFIG);
+            WalletUtils.ER_WALLET_CONFIG = new JSONObject().put("id", "erWallet").put("storage_config", WalletUtils.DEFAULT_WALLTES_CONFIG);
+            WalletUtils.CSO_STEWARD_WALLET_CONFIG = new JSONObject().put("id", "stewardWallet").put("storage_config", WalletUtils.DEFAULT_WALLTES_CONFIG);
 
             WalletUtils.DEFAULT_WALLETS_CREDENTIALS = new JSONObject().put("key", "password");
         } catch (JSONException e) {
@@ -44,17 +51,25 @@ public final class WalletUtils {
      * @throws IndyException
      */
     public static void createEVWallet() throws IndyException {
+        if (new File(String.format("%s/%s", IndyUtils.getWalletsPath(), "evWallet")).exists()) {
+            Log.w(WalletUtils.class.toString(), "EV wallet already exists");
+            return;
+        }
         try {
             Wallet.createWallet(WalletUtils.EV_WALLET_CONFIG.toString(), WalletUtils.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
         } catch (InterruptedException e) {
             e.printStackTrace();
-        } catch (ExecutionException ignored) {}        // Wallet already exists
+        } catch (ExecutionException ignored) {}        // Wallet already exists, should never get here
     }
 
     /**
      * @throws IndyException
      */
     public static void createCSWallet() throws IndyException {
+        if (new File(String.format("%s/%s", IndyUtils.getWalletsPath(), "csWallet")).exists()) {
+            Log.w(WalletUtils.class.toString(), "CS wallet already exists");
+            return;
+        }
         try {
             Wallet.createWallet(WalletUtils.CS_WALLET_CONFIG.toString(), WalletUtils.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
         } catch (InterruptedException e) {
@@ -66,6 +81,10 @@ public final class WalletUtils {
      * @throws IndyException
      */
     public static void createCSOWallet() throws IndyException {
+        if (new File(String.format("%s/%s", IndyUtils.getWalletsPath(), "csoWallet")).exists()) {
+            Log.w(WalletUtils.class.toString(), "CSO wallet already exists");
+            return;
+        }
         try {
             Wallet.createWallet(WalletUtils.CSO_WALLET_CONFIG.toString(), WalletUtils.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
         } catch (InterruptedException e) {
@@ -77,6 +96,10 @@ public final class WalletUtils {
      * @throws IndyException
      */
     public static void createDSOWallet() throws IndyException {
+        if (new File(String.format("%s/%s", IndyUtils.getWalletsPath(), "dsoWallet")).exists()) {
+            Log.w(WalletUtils.class.toString(), "DSO wallet already exists");
+            return;
+        }
         try {
             Wallet.createWallet(WalletUtils.DSO_WALLET_CONFIG.toString(), WalletUtils.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
         } catch (InterruptedException e) {
@@ -88,6 +111,10 @@ public final class WalletUtils {
      * @throws IndyException
      */
     public static void createERWallet() throws IndyException {
+        if (new File(String.format("%s/%s", IndyUtils.getWalletsPath(), "erWallet")).exists()) {
+            Log.w(WalletUtils.class.toString(), "ER wallet already exists");
+            return;
+        }
         try {
             Wallet.createWallet(WalletUtils.ER_WALLET_CONFIG.toString(), WalletUtils.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
         } catch (InterruptedException e) {
@@ -99,6 +126,10 @@ public final class WalletUtils {
      * @throws IndyException
      */
     public static void createStewardWallet() throws IndyException {
+        if (new File(String.format("%s/%s", IndyUtils.getWalletsPath(), "stewardWallet")).exists()) {
+            Log.w(WalletUtils.class.toString(), "Steward wallet already exists");
+            return;
+        }
         try {
             Wallet.createWallet(WalletUtils.CSO_STEWARD_WALLET_CONFIG.toString(), WalletUtils.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
         } catch (InterruptedException e) {

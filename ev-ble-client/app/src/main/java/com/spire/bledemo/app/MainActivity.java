@@ -1,7 +1,6 @@
 package com.spire.bledemo.app;
 
 import android.app.Activity;
-import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -14,15 +13,11 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -173,8 +168,8 @@ public class MainActivity extends Activity {
 //-------------------------------------------------------------------------------------------------
 // EV - CS communication message building functions
 
-    public void sendDID() {
-        byte[] message = mIndyService.createEVdidAndCSOProofRequest();
+    public void sendExchangeRequest() {
+        byte[] message = mIndyService.createExchangeRequest();
         mBluetoothLeService.write(message);
     }
 
@@ -188,8 +183,8 @@ public class MainActivity extends Activity {
     }
 
     //Sends the proof  from file via BLE
-    private void sendProof() {
-        byte[] msg = mIndyService.createErChargingProof();
+    private void sendExchangeComplete() {
+        byte[] msg = mIndyService.createExchangeComplete();
         mBluetoothLeService.write(msg);
 
 /*        try {
@@ -304,14 +299,14 @@ public class MainActivity extends Activity {
                 byte[] msg = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
                 int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, 0);
                 if (stage == 0) {
-                    mIndyService.parseAndSaveCsDid1(msg);
+                    mIndyService.parseExchangeInvitation(msg);
                     nextStage(1);
-                    sendDID();
+                    sendExchangeRequest();
                     nextStage(2);
                 } else if (stage == 2) {
-                    mIndyService.parseCSDid2CSOProofAndEVCertificateProofRequest(msg);
+                    mIndyService.parseExchangeResponse(msg);
                     nextStage(3);
-                    sendProof();
+                    sendExchangeComplete();
                     nextStage(4);
                     startEVCharging();
                 } else {
@@ -324,14 +319,11 @@ public class MainActivity extends Activity {
     };
 
     private void startEVCharging() {
-        byte[] commitment = mIndyService.createCommitment();
-        mBluetoothLeService.write(commitment);
-        nextStage(5);
         for (int i=1; i<=10;i++) {
-            byte[] mircoCharge = mIndyService.createMicroChargeRequest(i);
+            byte[] mircoCharge = mIndyService.createMicroChargeRequest();
             mBluetoothLeService.write(mircoCharge);
             nextStage(5);
-            updatePieProgress(i*10);
+            updatePieProgress(mPieProgress.getLevel() + 10);
         }
     }
 

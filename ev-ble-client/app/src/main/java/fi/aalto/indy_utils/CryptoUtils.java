@@ -8,6 +8,8 @@ import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.concurrent.ExecutionException;
 
 public class CryptoUtils {
@@ -178,5 +180,43 @@ public class CryptoUtils {
         }
 
         return decryptedAndVerifiedMessage;
+    }
+
+    /**
+     * @param inviterDID = the DID of the inviter in the connection (very likely the EV)
+     * @param inviterWallet = the wallet of the inviter
+     * @param inviteeDID = the DID of the invitee in the connection (very likely the CS)
+     * @param inviteeVerkey = the verkey of the invitee in the connection (very likely the CS)
+     * @param hashChainRoot = the root (the first element to be revealed) of the hashchain
+     * @param hashChainHashFunctionName = the hashing function name that the hashchain makes use of
+     * @param unixTimestamp = the UNIX timestamp (since epoc) of the commitment message
+     * @param nonce = unique nonce of the commitment message
+     * @param hashCainStepValue = the economic value of each step in the hashchain
+     * @return the commitment message signed by the inviter and encrypted for the invitee.
+     */
+    public static JSONObject getSignedAndEncryptedCommitmentMessage(String inviterDID, Wallet inviterWallet, JSONObject evProofSent, String csProofSignature, String hashChainRoot, int maxChainLength, String hashChainHashFunctionName, long unixTimestamp, long nonce, double hashCainStepValue) {
+        try {
+
+            JSONObject paymentCommitmentSignatureData = new JSONObject()
+                    .put("ev_proof", evProofSent)
+                    .put("cs_signature", csProofSignature)
+                    .put("hashchain_root", hashChainRoot)
+                    .put("maxChainLength", maxChainLength)
+                    .put("timestamp", unixTimestamp)
+                    .put("hashchain_value", hashCainStepValue);
+
+            String signature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(inviterWallet, Did.keyForLocalDid(inviterWallet, inviterDID).get(), paymentCommitmentSignatureData.toString().getBytes()));
+
+            JSONObject commitmentMessage = new JSONObject()
+                    .put("signature", signature)
+                    .put("hashchain_root", hashChainRoot)
+                    .put("maxChainLength", maxChainLength)
+                    .put("timestamp", unixTimestamp)
+                    .put("hashchain_value", hashCainStepValue);
+            return commitmentMessage;
+        } catch (IndyException | ExecutionException | InterruptedException | JSONException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }

@@ -1,5 +1,7 @@
 package fi.aalto.indy_utils;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import org.bitcoinj.core.Base58;
@@ -27,12 +29,20 @@ public final class DIDUtils {
 
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter EV_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.EV_DID_SEED, null, null);
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CS_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.CS_DID_SEED, null, null);
-    public static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.CSO_DID_SEED, null, null);
-    public static final DidJSONParameters.CreateAndStoreMyDidJSONParameter DSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.DSO_DID_SEED, null, null);
+    private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.CSO_DID_SEED, null, null);
+    private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter DSO_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.DSO_DID_SEED, null, null);
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter ER_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.ER_DID_SEED, null, null);
     private static final DidJSONParameters.CreateAndStoreMyDidJSONParameter CSO_STEWARD_DID_INFO = new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, DIDUtils.STEWARD_DID_SEED, null, null);
 
+    private static SharedPreferences storage;
+    private static boolean force;
+
     private DIDUtils() {}
+
+    static void initWithAppContext(Context context, boolean force) {
+        DIDUtils.storage = context.getSharedPreferences("dids", Context.MODE_PRIVATE);
+        DIDUtils.force = force;
+    }
 
     /**
      * @param evWallet = result of WalletUtils.openEVWallet
@@ -76,6 +86,11 @@ public final class DIDUtils {
         DidResults.CreateAndStoreMyDidResult did = null;
         try {
             did = Did.createAndStoreMyDid(csoWallet, DIDUtils.CSO_DID_INFO.toString()).get();
+            if (DIDUtils.isDIDStored(did.getDid())) {
+                Log.w(DIDUtils.class.toString(), "DID previously generated.");
+                return did;
+            }
+            DIDUtils.saveDID(did.getDid());
             JSONObject csoRegistrationNymRequest = new JSONObject(Ledger.buildNymRequest(csoStewardDID, did.getDid(), did.getVerkey(), "CSO", "ENDORSER").get());
             JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, csoStewardWallet, csoStewardDID, csoRegistrationNymRequest.toString()).get());
             Log.d(DIDUtils.class.toString(), requestResult.toString());
@@ -85,7 +100,7 @@ public final class DIDUtils {
                 if (!ledgerError.contains("only the owner can modify it")) {
                     throw new LedgerWriteException(ledgerError);
                 } else {
-                    Log.d(DIDUtils.class.toString(), "DID previously written on the ledger");
+                    Log.w(DIDUtils.class.toString(), "DID previously written on the ledger.");
                 }
             }
             return did;
@@ -107,6 +122,11 @@ public final class DIDUtils {
         DidResults.CreateAndStoreMyDidResult did = null;
         try {
             did = Did.createAndStoreMyDid(dsoWallet, DIDUtils.DSO_DID_INFO.toString()).get();
+            if (DIDUtils.isDIDStored(did.getDid())) {
+                Log.w(DIDUtils.class.toString(), "DID previously generated.");
+                return did;
+            }
+            DIDUtils.saveDID(did.getDid());
             JSONObject dsoRegistrationNymRequest = new JSONObject(Ledger.buildNymRequest(dsoStewardDID, did.getDid(), did.getVerkey(), "DSO", "ENDORSER").get());
             JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, dsoStewardWallet, dsoStewardDID, dsoRegistrationNymRequest.toString()).get());
             Log.d(DIDUtils.class.toString(), requestResult.toString());
@@ -116,7 +136,7 @@ public final class DIDUtils {
                 if (!ledgerError.contains("only the owner can modify it")) {
                     throw new LedgerWriteException(ledgerError);
                 } else {
-                    Log.d(DIDUtils.class.toString(), "DID previously written on the ledger");
+                    Log.w(DIDUtils.class.toString(), "DID previously written on the ledger.");
                 }
             }
             return did;
@@ -138,6 +158,11 @@ public final class DIDUtils {
         DidResults.CreateAndStoreMyDidResult did = null;
         try {
             did = Did.createAndStoreMyDid(erWallet, DIDUtils.ER_DID_INFO.toString()).get();
+            if (DIDUtils.isDIDStored(did.getDid())) {
+                Log.w(DIDUtils.class.toString(), "DID previously generated.");
+                return did;
+            }
+            DIDUtils.saveDID(did.getDid());
             JSONObject erRegistrationNymRequest = new JSONObject(Ledger.buildNymRequest(erStewardDID, did.getDid(), did.getVerkey(), "ER", "ENDORSER").get());
             JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, erStewardWallet, erStewardDID, erRegistrationNymRequest.toString()).get());
             Log.d(DIDUtils.class.toString(), requestResult.toString());
@@ -147,7 +172,7 @@ public final class DIDUtils {
                 if (!ledgerError.contains("only the owner can modify it")) {
                     throw new LedgerWriteException(ledgerError);
                 } else {
-                    Log.d(DIDUtils.class.toString(), "DID previously written on the ledger");
+                    Log.w(DIDUtils.class.toString(), "DID previously written on the ledger.");
                 }
             }
             return did;
@@ -170,6 +195,18 @@ public final class DIDUtils {
             e.printStackTrace();
         }
         return did;
+    }
+
+    private static void saveDID(String did) {
+        DIDUtils.storage.edit().putBoolean(DIDUtils.getStorageKeyForDID(did), true).apply();
+    }
+
+    private static String getStorageKeyForDID(String DID) {
+        return new StringBuilder("did:").append(DID).toString();
+    }
+
+    private static boolean isDIDStored(String did) {
+        return DIDUtils.storage.getBoolean(DIDUtils.getStorageKeyForDID(did), false);
     }
 
     public static String getDIDForVerkey(String verkey) {

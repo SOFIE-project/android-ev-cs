@@ -19,7 +19,7 @@ public final class CredentialUtils {
 
     private static final String CS_MASTER_SECRET_ID = "CS-secret";
 
-    public static final String EV_MASTER_SECRET_ID = "EV-secret";
+    private static final String EV_MASTER_SECRET_ID = "EV-secret";
 
     public static final int CS_DISTRICT_ID = 1;
 
@@ -80,12 +80,12 @@ public final class CredentialUtils {
 
         try {
             if (credentialOffer != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential offer retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential offer retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential offer not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential offer not found in cache. Generating...");
                 credentialOffer = new JSONObject(Anoncreds.issuerCreateCredentialOffer(offererWallet, credentialDefinitionID).get());
                 CredentialUtils.saveCredentialOffer(credentialDefinitionID, credentialOffer);
-                Log.d(CredentialUtils.class.toString(), "Credential offer saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential offer saved in cache.");
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -139,12 +139,12 @@ public final class CredentialUtils {
 
         try {
             if (credentialRequest != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
                 credentialRequest = Anoncreds.proverCreateCredentialReq(csWallet, csDID, csoInfoCredentialOffer.toString(), csoInfoCredentialDefinition.toString(), csMasterSecretID).get();
                 CredentialUtils.saveCredentialRequest(csoInfoCredentialOffer, credentialRequest);
-                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request saved in cache.");
             }
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -161,12 +161,12 @@ public final class CredentialUtils {
 
         try {
             if (credentialRequest != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
                 credentialRequest = Anoncreds.proverCreateCredentialReq(csWallet, csDID, csCertifiedDIDCredentialOffer.toString(), csCertifiedDIDCredentialDefinition.toString(), csMasterSecretID).get();
                 CredentialUtils.saveCredentialRequest(csCertifiedDIDCredentialOffer, credentialRequest);
-                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request saved in cache.");
             }
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -192,12 +192,12 @@ public final class CredentialUtils {
 
         try {
             if (credentialRequest != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
                 credentialRequest = Anoncreds.proverCreateCredentialReq(csWallet, csDID, dsoDistrictCredentialOffer.toString(), dsoDistrictCredentialDefinition.toString(), csMasterSecretID).get();
                 CredentialUtils.saveCredentialRequest(dsoDistrictCredentialOffer, credentialRequest);
-                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request saved in cache.");
             }
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -223,12 +223,12 @@ public final class CredentialUtils {
 
         try {
             if (credentialRequest != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
                 credentialRequest = Anoncreds.proverCreateCredentialReq(evWallet, evDID, erChargingCredentialOffer.toString(), erChargingCredentialDefinition.toString(), evMasterSecretID).get();
                 CredentialUtils.saveCredentialRequest(erChargingCredentialOffer, credentialRequest);
-                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request saved in cache.");
             }
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -245,12 +245,12 @@ public final class CredentialUtils {
 
         try {
             if (credentialRequest != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential request not found in cache. Generating...");
                 credentialRequest = Anoncreds.proverCreateCredentialReq(evWallet, evDID, evCertifiedDIDCredentialOffer.toString(), evCertifiedDIDCredentialDefinition.toString(), evMasterSecretID).get();
                 CredentialUtils.saveCredentialRequest(evCertifiedDIDCredentialOffer, credentialRequest);
-                Log.d(CredentialUtils.class.toString(), "Credential request saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential request saved in cache.");
             }
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -296,14 +296,14 @@ public final class CredentialUtils {
         AnoncredsResults.IssuerCreateCredentialResult credential = null;
 
         if (!CredentialUtils.force) {
-            CredentialUtils.retrieveCredentialForCredentialRequest(csoInfoCredentialRequest);
+            credential = CredentialUtils.retrieveCredentialForCredentialRequest(csoInfoCredentialRequest);
         }
 
         try {
             if (credential != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject csoInfoCredentialContent = new JSONObject()
                         .put(CredentialSchemaUtils.CSO_INFO_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", csoDID)
@@ -319,7 +319,7 @@ public final class CredentialUtils {
                         );
                 credential = Anoncreds.issuerCreateCredential(csoWallet, csoInfoCredentialOffer.toString(), csoInfoCredentialRequest.toString(), csoInfoCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(csoInfoCredentialRequest, credential);
-                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -333,14 +333,14 @@ public final class CredentialUtils {
         AnoncredsResults.IssuerCreateCredentialResult credential = null;
 
         if (!CredentialUtils.force) {
-            CredentialUtils.retrieveCredentialForCredentialRequest(csCertifiedDIDCredentialRequest);
+            credential = CredentialUtils.retrieveCredentialForCredentialRequest(csCertifiedDIDCredentialRequest);
         }
 
         try {
             if (credential != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject csDIDCredentialContent = new JSONObject()
                         .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", csDID)
@@ -356,7 +356,7 @@ public final class CredentialUtils {
                         );
                 credential = Anoncreds.issuerCreateCredential(csoWallet, csCertifiedDIDCredentialOffer.toString(), csCertifiedDIDCredentialRequest.toString(), csDIDCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(csCertifiedDIDCredentialRequest, credential);
-                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -377,14 +377,14 @@ public final class CredentialUtils {
         AnoncredsResults.IssuerCreateCredentialResult credential = null;
 
         if (!CredentialUtils.force) {
-            CredentialUtils.retrieveCredentialForCredentialRequest(dsoDistrictCredentialRequest);
+            credential = CredentialUtils.retrieveCredentialForCredentialRequest(dsoDistrictCredentialRequest);
         }
 
         try {
             if (credential != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject dsoDistrictCredentialContent = new JSONObject()
                         .put(CredentialSchemaUtils.DSO_DISTRICT_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", String.format("%d", CredentialUtils.CS_DISTRICT_ID))
@@ -400,7 +400,7 @@ public final class CredentialUtils {
                         );
                 credential = Anoncreds.issuerCreateCredential(dsoWallet, dsoDistrictCredentialOffer.toString(), dsoDistrictCredentialRequest.toString(), dsoDistrictCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(dsoDistrictCredentialRequest, credential);
-                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -422,14 +422,14 @@ public final class CredentialUtils {
         AnoncredsResults.IssuerCreateCredentialResult credential = null;
 
         if (!CredentialUtils.force) {
-            CredentialUtils.retrieveCredentialForCredentialRequest(erChargingCredentialRequest);
+            credential = CredentialUtils.retrieveCredentialForCredentialRequest(erChargingCredentialRequest);
         }
 
         try {
             if (credential != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject evChargingCredentialContent = new JSONObject()
                         .put(CredentialSchemaUtils.ER_CHARGING_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", "0")
@@ -441,7 +441,7 @@ public final class CredentialUtils {
                         );
                 credential = Anoncreds.issuerCreateCredential(erWallet, erChargingCredentialOffer.toString(), erChargingCredentialRequest.toString(), evChargingCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(erChargingCredentialRequest, credential);
-                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -455,14 +455,14 @@ public final class CredentialUtils {
         AnoncredsResults.IssuerCreateCredentialResult credential = null;
 
         if (!CredentialUtils.force) {
-            CredentialUtils.retrieveCredentialForCredentialRequest(evCertifiedDIDCredentialRequest);
+            credential = CredentialUtils.retrieveCredentialForCredentialRequest(evCertifiedDIDCredentialRequest);
         }
 
         try {
             if (credential != null) {
-                Log.d(CredentialUtils.class.toString(), "Credential retrieved from cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential retrieved from cache.");
             } else {
-                Log.d(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
+                Log.w(CredentialUtils.class.toString(), "Credential not found in cache. Generating...");
                 JSONObject evChargingCredentialContent = new JSONObject()
                         .put(CredentialSchemaUtils.CERTIFIED_DID_CREDENTIAL_SCHEMA_ATTRIBUTES[0], new JSONObject()
                                 .put("raw", evDID)
@@ -478,7 +478,7 @@ public final class CredentialUtils {
                         );
                 credential = Anoncreds.issuerCreateCredential(erWallet, evCertifiedDIDCredentialOffer.toString(), evCertifiedDIDCredentialRequest.toString(), evChargingCredentialContent.toString(), null, -1).get();
                 CredentialUtils.saveCredential(evCertifiedDIDCredentialRequest, credential);
-                Log.d(CredentialUtils.class.toString(), "Credential saved in cache.");
+                Log.w(CredentialUtils.class.toString(), "Credential saved in cache.");
             }
         } catch (JSONException e) {
             e.printStackTrace();

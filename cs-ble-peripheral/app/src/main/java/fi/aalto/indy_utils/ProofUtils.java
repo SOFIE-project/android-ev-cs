@@ -128,7 +128,7 @@ public final class ProofUtils {
      * @return the proof for the CSO Info + DSO District Info proof request.
      * @throws IndyException
      */
-    public static JSONObject createProofCSOInfoDSODistrictDIDCertifiedProofRequest(Wallet csWallet, JSONObject csoInfodsoDistrictCertifiedDIDProofRequest, JSONObject csoInfodsoDistrictCertifiedDIDProofCredentials, String csMasterSecretID, String csoInfoCredentialSchemaID, String dsoDistrictCredentialSchemaID, String certifiedDIDCredentialSchemaID, JSONObject csoInfoCredentialSchema, JSONObject dsoDistrictCredentialSchema, JSONObject certifiedDIDCredentialSchema, String csoInfoCredentialDefinitionID, String dsoDistrictCredentialDefinitionID, String csCertifiedDIDCredentialDefinitionID, JSONObject csoInfoCredentialDefinition, JSONObject dsoDistrictCredentialDefinition, JSONObject csCertifiedDIDCredentialDefinition) throws IndyException {
+    public static JSONObject createProofCSOInfoDSODistrictDIDCertifiedProofRequest(Wallet csWallet, JSONObject csoInfodsoDistrictCertifiedDIDProofRequest, JSONObject csoInfodsoDistrictCertifiedDIDProofCredentials, String csMasterSecretID, String csoInfoCredentialSchemaID, String certifiedDIDCredentialSchemaID, JSONObject csoInfoCredentialSchema, JSONObject certifiedDIDCredentialSchema, String csoInfoCredentialDefinitionID, String csCertifiedDIDCredentialDefinitionID, JSONObject csoInfoCredentialDefinition, JSONObject csCertifiedDIDCredentialDefinition) throws IndyException {
         JSONObject proof = null;
         try {
             proof = new JSONObject(
@@ -139,12 +139,10 @@ public final class ProofUtils {
                             csMasterSecretID,
                             new JSONObject()
                                     .put(csoInfoCredentialSchemaID, csoInfoCredentialSchema)
-                                    .put(dsoDistrictCredentialSchemaID, dsoDistrictCredentialSchema)
                                     .put(certifiedDIDCredentialSchemaID, certifiedDIDCredentialSchema)
                                     .toString(),
                             new JSONObject()
                                     .put(csoInfoCredentialDefinitionID, csoInfoCredentialDefinition)
-                                    .put(dsoDistrictCredentialDefinitionID, dsoDistrictCredentialDefinition)
                                     .put(csCertifiedDIDCredentialDefinitionID, csCertifiedDIDCredentialDefinition)
                                     .toString(),
                             new JSONObject().toString()

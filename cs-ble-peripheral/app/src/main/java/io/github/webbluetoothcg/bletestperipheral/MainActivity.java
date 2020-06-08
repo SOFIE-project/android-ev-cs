@@ -26,23 +26,18 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.ScrollView;
-import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
-import static android.content.ContentValues.TAG;
 
 public class MainActivity extends Activity {
 
@@ -103,7 +98,7 @@ public class MainActivity extends Activity {
     public void handleEvent(int newState) {
         switch (newState) {
             case 0: // write did to rx
-                byte[] tempDID = mIndyService.createCsDid1();
+                byte[] tempDID = mIndyService.createExchangeInvitation();
                 Log.v(TAG, "Started sending did: " + System.currentTimeMillis());
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID);
                 break;
@@ -114,10 +109,10 @@ public class MainActivity extends Activity {
             case 2:
                 // verify the proof request validity or throw error, reset state and disconnect client
                 byte[] msg = mBluetoothLeService.getBLEMessage();
-                mIndyService.parseEVDIDAndCSOProofRequest(msg);
+                mIndyService.parseExchangeRequest(msg);
 
                 // write real DID
-                byte[] tempDID2 = mIndyService.createCSDid2CSOProofAndEVCertificateProofRequest();
+                byte[] tempDID2 = mIndyService.createExchangeResponse();
                 Log.v(TAG, "Started sending real did: " + System.currentTimeMillis());
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID2);
                 break;
@@ -128,13 +123,14 @@ public class MainActivity extends Activity {
             case 4:
                 // verify EV customer proof
                 msg = mBluetoothLeService.getBLEMessage();
-                mIndyService.verifyErChargingProof(msg);
+                mIndyService.parseExchangeComplete(msg);
                 break;
 
             case 5:
                 msg = mBluetoothLeService.getBLEMessage();
-                int progress = mIndyService.verifyCommitment(msg);
-                updatePieProgress(mPieProgress.getLevel() + progress);
+                if (mIndyService.verifyHashstep(msg)) {
+                    updatePieProgress(mPieProgress.getLevel() +  10);
+                }
 
                 break;
         }
