@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="Gradle: :ring:@aar">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/924f83806e05cd4acbef2f4a92e21ddb/ring/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/924f83806e05cd4acbef2f4a92e21ddb/ring/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/app/lib/ring-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

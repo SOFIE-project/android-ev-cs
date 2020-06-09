@@ -36,6 +36,7 @@ import fi.aalto.indy_utils.MessageSignatureException;
 import fi.aalto.indy_utils.PoolUtils;
 import fi.aalto.indy_utils.ProofUtils;
 import fi.aalto.indy_utils.WalletUtils;
+import ring.Ring;
 
 public class IndyService extends Service {
 
@@ -283,7 +284,17 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), String.format("Proof for CSO Info + DSO district proof request created: %s", csoInfodsoDistrictProofRevealing.toString().length()));
 
             // Creating signature on cs proof
-            byte[] proofSignatureRaw = CryptoUtils.generateMessageSignature(csWallet, csDID.getVerkey(), csoInfodsoDistrictProofRevealing.toString().getBytes());
+            //byte[] proofSignatureRaw = CryptoUtils.generateMessageSignature(csWallet, csDID.getVerkey(), csoInfodsoDistrictProofRevealing.toString().getBytes());
+            //proofSignature = Base64.getEncoder().encodeToString(proofSignatureRaw);
+
+            // Ring Signature call
+            String pbKeyList = CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN1")
+                    + "|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN2")
+                    + "|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN3")
+                    + "|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN4")
+                    + "|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN5");
+
+            byte[] proofSignatureRaw  = Ring.sign(csoInfodsoDistrictProofRevealing.toString().getBytes(), "00000000000000000000000000CS-DID".getBytes(), pbKeyList );
             proofSignature = Base64.getEncoder().encodeToString(proofSignatureRaw);
 
             Log.i(this.getClass().toString(), "Creating EV charging credential proof request...");
@@ -430,6 +441,7 @@ public class IndyService extends Service {
                     .put("commitment", commitmentMessage)
                     .put("csProofRequest", csoInfodsoDistrictProofRequest)
                     .put("csProof", csoInfodsoDistrictProofRevealing)
+                    .put("csProofSignature", proofSignature)
                     .put("evProofRequest", erChargingProofRequest)
                     .put("evProof", erChargingProofRevealing)
                     .put("lastHashStep", lastStep);

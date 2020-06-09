@@ -36,6 +36,8 @@ import fi.aalto.indy_utils.PoolUtils;
 import fi.aalto.indy_utils.ProofUtils;
 import fi.aalto.indy_utils.WalletUtils;
 
+import ring.Ring;
+
 //import android.support.annotation.RequiresApi;
 
 
@@ -318,8 +320,23 @@ public class IndyService extends Service {
 
             evProofRequestReceived = exchangeResponse.getJSONObject("proof_request");
 
-            // EV need not verify this signature, if it is not the same when signed by EV, CS will reject it.
+            // EV needs verify this signature to confirm owning of DID and also make it demonstrable,
+            // if it is not the same when signed by EV, CS will reject it.
+
             proofSignature = exchangeResponse.getString("signature");
+
+            // Ring Signature call
+            String pbKeyList = CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN1")
+                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN2")
+                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN3")
+                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN4")
+                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN5")
+                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-DID");
+
+            if(! Ring.verify(csProofReceived.toString().getBytes(), Base64.getDecoder().decode(proofSignature), pbKeyList)) {
+                System.exit(0);
+            }
+
 
             mCommonUtils.stopTimer();
 
