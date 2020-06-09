@@ -329,6 +329,17 @@ public class IndyService extends Service {
 
     }
 
+    public String getEvDid() {
+        return evDID.getDid();
+    }
+
+    public String getCsDid() {
+        return csDid;
+    }
+
+    public String getCsSignature() {
+        return proofSignature;
+    }
 
     public byte[] createExchangeComplete() {
         byte[] exchangeCompleteSentEncrypted = null;
@@ -445,10 +456,20 @@ public class IndyService extends Service {
 
 
             // 1. Indy initialisation
-            // TODO: IF credentials are generated, skip after this step to indy Initialization. But how is it going to know?
 
             Log.i(this.getClass().toString(), "Initialising Indy context...");
             IndyUtils.initialise(getApplicationContext(), false);
+
+            // X. IF credentials are generated, skip after this step to indy Initialization. But how is it going to know?
+            if (!storage.getString(ER_DEF_ID, null).isEmpty()) {
+                // Adding Credential Ids
+                erDid = storage.getString(ER_DID, null);
+                erCredSchemaId = storage.getString(ER_SCHEMA_ID, null);
+                erCredDefId = storage.getString(ER_DEF_ID, null);
+                didSchemaId = storage.getString(DID_SCHEMA_ID, null);
+                didErDefId = storage.getString(DID_DEF_ID, null);
+                return;
+            }
 
             // 2. Wallets creation
 

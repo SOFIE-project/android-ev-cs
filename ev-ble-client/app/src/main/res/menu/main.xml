@@ -10,7 +10,4 @@
         android:title="@string/action_time_measurements"
         android:orderInCategory="100"/>
 
-    <item android:id="@+id/action_refresh_credentials"
-        android:title="@string/action_refresh_credentials"
-        android:orderInCategory="100"/>
 </menu>

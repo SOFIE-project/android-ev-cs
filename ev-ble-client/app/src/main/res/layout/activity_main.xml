@@ -64,7 +64,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/cs_name_label"
-            android:text="MAC:"
+            android:text="CS MAC:"
             android:textColor="@android:color/secondary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
@@ -79,20 +79,11 @@
 
 
         <TextView
-            android:id="@+id/cs_did1_label"
+            android:id="@+id/cs_did_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/ev_did_label"
-            android:text="CS DID1: "
-            android:textColor="@android:color/secondary_text_light"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <TextView
-            android:id="@+id/cs_did2_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/cs_did1_label"
-            android:text="CS DID2: "
+            android:text="CS DID: "
             android:textColor="@android:color/secondary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
@@ -101,13 +92,22 @@
             android:id="@+id/csoProofLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/cs_did2_label"
-            android:text="CSO and District Proof:"
+            android:layout_below="@id/cs_did_label"
+            android:text="CS Proof:"
+            android:textColor="@android:color/secondary_text_light"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <TextView
+            android:id="@+id/csSignatureLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/csoProofLabel"
+            android:text="CS Signature:"
             android:textColor="@android:color/secondary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
 
-<!--Values text views start here-->
+        <!--Values text views start here-->
 
         <TextView
             android:id="@+id/cs_name_text"
@@ -140,7 +140,7 @@
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <TextView
-            android:id="@+id/cs_did1_text"
+            android:id="@+id/cs_did_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/ev_did_text"
@@ -150,22 +150,24 @@
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <TextView
-            android:id="@+id/cs_did2_text"
+            android:id="@+id/csoProofText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/cs_did1_text"
+            android:layout_below="@id/cs_did_text"
             android:layout_alignParentRight="true"
             android:text="@string/dash_placeholder"
             android:textColor="@android:color/primary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <TextView
-            android:id="@+id/csoProofText"
+            android:id="@+id/csSignatureText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/cs_did2_text"
+            android:layout_below="@id/csoProofText"
             android:layout_alignParentRight="true"
             android:text="@string/dash_placeholder"
+            android:maxLength="20"
+            android:ellipsize="end"
             android:textColor="@android:color/primary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 

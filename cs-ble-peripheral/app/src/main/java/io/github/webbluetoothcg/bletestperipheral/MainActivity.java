@@ -25,6 +25,7 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Parcelable;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -39,6 +40,8 @@ import android.widget.Toast;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import org.json.JSONException;
+
 public class MainActivity extends Activity {
 
     private static final int REQUEST_ENABLE_BT = 1;
@@ -50,7 +53,7 @@ public class MainActivity extends Activity {
 
     // UI elements
     private TextView mStatusText, messages;
-    private TextView mCsName, mCsMac, mEvDid, mCsDid1, mCsDid2, mCsoProof;
+    private TextView mEvName, mEvMac, mEvDid, mCsDid, mCsoProof, mCsSignature;
     private ImageView chargeProgress;
 
     private PieProgressDrawable mPieProgress;
@@ -101,6 +104,7 @@ public class MainActivity extends Activity {
                 byte[] tempDID = mIndyService.createExchangeInvitation();
                 Log.v(TAG, "Started sending did: " + System.currentTimeMillis());
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID);
+                writeLine("Sending Exchange Invitation");
                 break;
 
             case 1:
@@ -109,12 +113,15 @@ public class MainActivity extends Activity {
             case 2:
                 // verify the proof request validity or throw error, reset state and disconnect client
                 byte[] msg = mBluetoothLeService.getBLEMessage();
-                mIndyService.parseExchangeRequest(msg);
+                String evDid = mIndyService.parseExchangeRequest(msg);
+                mEvDid.setText(evDid);
 
                 // write real DID
                 byte[] tempDID2 = mIndyService.createExchangeResponse();
                 Log.v(TAG, "Started sending real did: " + System.currentTimeMillis());
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID2);
+                mCsDid.setText(mIndyService.getCsDid());
+                writeLine("Sending Exchange Response");
                 break;
 
             case 3:
@@ -127,6 +134,8 @@ public class MainActivity extends Activity {
                 if(isCommitmentValid) {
                     mBluetoothLeService.writeLongLocalCharacteristic(isCommitmentValid.toString().getBytes());
                 }
+                mCsoProof.setText("Verified");
+                mCsSignature.setText(mIndyService.getCsSignature());
                 break;
 
             case 5:
@@ -136,7 +145,7 @@ public class MainActivity extends Activity {
                     updatePieProgress(mPieProgress.getLevel() +  10);
                     mBluetoothLeService.writeLongLocalCharacteristic(isCommitmentValid.toString().getBytes());
                 }
-
+                writeLine("Received hashstep");
                 break;
         }
     }
@@ -154,12 +163,12 @@ public class MainActivity extends Activity {
         // Grab references to UI elements.
         mStatusText = findViewById(R.id.status_text);
         messages = (TextView) findViewById(R.id.messages);
-        mCsName = findViewById(R.id.cs_name_text);
-        mCsMac = findViewById(R.id.cs_mac_text);
+        mEvName = findViewById(R.id.cs_name_text);
+        mEvMac = findViewById(R.id.cs_mac_text);
         mEvDid = findViewById(R.id.ev_did_text);
-        mCsDid1 = findViewById(R.id.cs_did1_text);
-        mCsDid2 = findViewById(R.id.cs_did2_text);
+        mCsDid = findViewById(R.id.cs_did_text);
         mCsoProof = findViewById(R.id.csoProofText);
+        mCsSignature = findViewById(R.id.csSignatureText);
 
         mPieProgress = new PieProgressDrawable();
         mPieProgress.setColor(ContextCompat.getColor(this, R.color.f_green));
@@ -178,6 +187,7 @@ public class MainActivity extends Activity {
 
 
     }
+
 
     private static IntentFilter makeGattUpdateIntentFilter() {
         final IntentFilter intentFilter = new IntentFilter();
@@ -198,14 +208,14 @@ public class MainActivity extends Activity {
 
             if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
                 writeLine("Indy Initialized");
-                writeLine("Scanning for devices...");
                 mBluetoothLeService.startGattServer();
             } else if (BluetoothLeService.BROADCASTING.equals(action)) {
                 writeLine("Broadcasting!");
                 mStatusText.setText("Broadcasting");
             } else if (BluetoothLeService.EV_CONNECTED.equals(action)) {
                 String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
-                mCsMac.setText(msg);
+                mEvName.setText(msg.split(",")[0]);
+                mEvMac.setText(msg.split(",")[1]);
                 mStatusText.setText("Connected");
                 writeLine("Connected");
                 invalidateOptionsMenu();  // what is this??
@@ -297,8 +307,15 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_disconnect_devices) {
-            mBluetoothLeService.disconnectFromDevices();
+        if (item.getItemId() == R.id.show_transaction_details) {
+            Intent intent = new Intent(this, TransactionDetailsActivity.class );
+        try {
+            intent.putExtra("details", mIndyService.getTransactionDetails().toString(2));
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        startActivity(intent);
             return true /* event_consumed */;
         }
         return false /* event_consumed */;

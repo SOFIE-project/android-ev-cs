@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
+<!--    <item
         android:id="@+id/action_disconnect_devices"
         android:showAsAction="always"
-        android:title="Disconnect Client"/>
+        android:title="Disconnect Client"/>-->
+
+    <item
+        android:id="@+id/show_transaction_details"
+        android:title="Show transaction details"/>
 </menu>

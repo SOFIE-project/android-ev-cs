@@ -174,7 +174,7 @@ public class BluetoothLeService extends Service {
 
                     if (mBluetoothManager.getConnectedDevices(BluetoothGattServer.GATT).size() == 1) {
                         mBluetoothDevices.add(device);
-                        broadcastUpdate(EV_CONNECTED, null, device.getAddress());
+                        broadcastUpdate(EV_CONNECTED, null, device.getName()+","+device.getAddress());
                         Log.v(TAG, "Connected to device: " + device.getAddress());
                     } else {
                         mGattServer.cancelConnection(device);

@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
 
     // UI elements
     private TextView mStatusText, messages;
-    private TextView mCsName, mCsMac, mEvDid, mCsDid1, mCsDid2, mCsoProof;
+    private TextView mCsName, mCsMac, mEvDid, mCsDid, mCsoProof, mCsSignature;
     private ImageView chargeProgress;
 
     private PieProgressDrawable mPieProgress;
@@ -56,16 +56,16 @@ public class MainActivity extends Activity {
         mCsName = findViewById(R.id.cs_name_text);
         mCsMac = findViewById(R.id.cs_mac_text);
         mEvDid = findViewById(R.id.ev_did_text);
-        mCsDid1 = findViewById(R.id.cs_did1_text);
-        mCsDid2 = findViewById(R.id.cs_did2_text);
+        mCsDid = findViewById(R.id.cs_did_text);
         mCsoProof = findViewById(R.id.csoProofText);
+        mCsSignature = findViewById(R.id.csSignatureText);
 
         mPieProgress = new PieProgressDrawable();
         mPieProgress.setColor(ContextCompat.getColor(this, R.color.f_green));
         chargeProgress = (ImageView) findViewById(R.id.charge_progress);
         chargeProgress.setImageDrawable(mPieProgress);
 
-        updatePieProgress(30);
+        updatePieProgress(0);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
@@ -86,9 +86,9 @@ public class MainActivity extends Activity {
     // Start EV charging manually
     public void startCharging() {
         mEvDid.setText(R.string.dash_placeholder);
-        mCsDid1.setText(R.string.dash_placeholder);
-        mCsDid2.setText(R.string.dash_placeholder);
+        mCsDid.setText(R.string.dash_placeholder);
         mCsoProof.setText(R.string.dash_placeholder);
+        mCsSignature.setText("-");
 
         // disconnect and start again.
         i=0;
@@ -158,10 +158,6 @@ public class MainActivity extends Activity {
             intent.putExtra("timeList", mBluetoothLeService.getTimeList() );
             startActivity(intent);
             return true;
-        } else if (id == R.id.action_refresh_credentials) {
-            mIndyService.generateCredentials();
-//            progressDialog = ProgressDialog.show();
-            return true;
         }
         return super.onOptionsItemSelected(item);
     }
@@ -172,13 +168,14 @@ public class MainActivity extends Activity {
 
     public void sendExchangeRequest() {
         byte[] message = mIndyService.createExchangeRequest();
+        mEvDid.setText(mIndyService.getEvDid());
+        writeLine("Sending Exchange Request");
         mBluetoothLeService.write(message);
     }
 
 
     public void nextStage(int stage) {
         if (mBluetoothLeService.write(stage)) {
-            writeLine("Stage: " + stage);
         } else {
             writeLine("Couldn't write stage to stage characteristic! " + stage);
         }
@@ -187,26 +184,8 @@ public class MainActivity extends Activity {
     //Sends the proof  from file via BLE
     private void sendExchangeComplete() {
         byte[] msg = mIndyService.createExchangeComplete();
+        writeLine("Sending Exchange Complete");
         mBluetoothLeService.write(msg);
-
-/*        try {
-            InputStream iS = getAssets().open("proof_example.json");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(iS));
-
-            StringBuffer sb = new StringBuffer();
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-
-            mBluetoothLeService.write(sb.toString());
-
-            reader.close();
-            iS.close();
-        } catch (IOException ex) {
-            writeLine("Unable to open asset.");
-        }*/
     }
 
 
@@ -295,7 +274,8 @@ public class MainActivity extends Activity {
 
 //                mCsDetails.setText(" Status: Connected \n CS Name: " + deviceName + "\n MAC: " + deviceAddress + " \n");
 //                ((RelativeLayout) mCsDetails.getParent()).setBackgroundColor(getResources().getColor(android.R.color.holo_green_light));
-                nextStage(0);
+//nextStage(0);
+                startCharging();
 
             } else if (BluetoothLeService.RX_MSG_RECVD.equals(action)) {
                 byte[] msg = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
@@ -307,6 +287,9 @@ public class MainActivity extends Activity {
                     nextStage(2);
                 } else if (stage == 2) {
                     mIndyService.parseExchangeResponse(msg);
+                    mCsDid.setText(mIndyService.getCsDid());
+                    mCsoProof.setText("Verified");
+                    mCsSignature.setText(mIndyService.getCsSignature());
                     nextStage(3);
                     sendExchangeComplete();
                     nextStage(4);
@@ -328,6 +311,7 @@ public class MainActivity extends Activity {
             nextStage(5);
             updatePieProgress(mPieProgress.getLevel() + 10);
             i++;
+            writeLine("Sent Hashstep " + i);
         }
     }
 

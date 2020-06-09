@@ -19,6 +19,7 @@ import org.hyperledger.indy.sdk.anoncreds.AnoncredsResults;
 import org.hyperledger.indy.sdk.did.DidResults;
 import org.hyperledger.indy.sdk.pool.Pool;
 import org.hyperledger.indy.sdk.wallet.Wallet;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.Base64;
@@ -60,7 +61,7 @@ public class IndyService extends Service {
 
     private Pool mSofiePool;
 
-    private String csDid1, evDid, evVerKey;
+    private String evDid, evVerKey;
 
     public static final String ACTION_INDY_INITIALIZED = "com.spire.bledemo.app.ACTION_INDY_INITIALIZED";
 
@@ -95,6 +96,7 @@ public class IndyService extends Service {
     private JSONObject erChargingProofRevealing;
     private String lastStep;
     private String proofSignature;
+    private JSONObject csoInfodsoDistrictProofRevealing;
 
 
     // Message encrypted for EV and signed by CS
@@ -118,6 +120,9 @@ public class IndyService extends Service {
         return null;
     }
 
+    public String getCsDid() {
+        return csDID.getDid();
+    }
 
     private String[] splitMessage(String payload) {
         return payload.split("\\|");
@@ -209,7 +214,7 @@ public class IndyService extends Service {
 
     // CS function
     // parseEVDIDAndCSOProofRequest
-    public void parseExchangeRequest(byte[] rawBytes) {
+    public String parseExchangeRequest(byte[] rawBytes) {
 
         try {
 
@@ -242,6 +247,7 @@ public class IndyService extends Service {
             }
             e.printStackTrace();
         }
+        return evDid;
     }
 
     // CS function
@@ -260,7 +266,7 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Creating proof for CSO Info + DSO district proof request...");
             JSONObject csoInfodsoDistrictProofRequestCredentialsRevealed = CredentialUtils.getPredicatesForCSOInfoDSODistrictCertifiedDIDProofRequest(csWallet, csoInfodsoDistrictProofRequest, true);
 
-            JSONObject csoInfodsoDistrictProofRevealing = ProofUtils.createProofCSOInfoDSODistrictDIDCertifiedProofRequest(
+            csoInfodsoDistrictProofRevealing = ProofUtils.createProofCSOInfoDSODistrictDIDCertifiedProofRequest(
                     csWallet,
                     csoInfodsoDistrictProofRequest,
                     csoInfodsoDistrictProofRequestCredentialsRevealed,
@@ -414,6 +420,24 @@ public class IndyService extends Service {
         return false;
     }
 
+    public String getCsSignature() {
+            return proofSignature;
+    }
+
+    public JSONObject getTransactionDetails() {
+        try {
+            return new JSONObject()
+                    .put("commitment", commitmentMessage)
+                    .put("csProofRequest", csoInfodsoDistrictProofRequest)
+                    .put("csProof", csoInfodsoDistrictProofRevealing)
+                    .put("evProofRequest", erChargingProofRequest)
+                    .put("evProof", erChargingProofRevealing)
+                    .put("lastHashStep", lastStep);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 
     /*
      * Service life cycle functions
@@ -487,6 +511,11 @@ public class IndyService extends Service {
 
             Log.i(this.getClass().toString(), "Initialising Indy context...");
             IndyUtils.initialise(getApplicationContext(), false);
+
+            // X. IF credentials are generated, skip after this step to indy Initialization. But how is it going to know?
+            if (!storage.getString(CSO_DEF_ID, null).isEmpty()) {
+                return;
+            }
 
             // 2. Wallets creation
 
