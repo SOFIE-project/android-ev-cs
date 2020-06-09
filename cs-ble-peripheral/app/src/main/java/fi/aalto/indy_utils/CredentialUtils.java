@@ -530,7 +530,6 @@ public final class CredentialUtils {
         try {
             CredentialsSearchForProofReq credentialsSearch = CredentialsSearchForProofReq.open(csWallet, csoInfodsoDistrictProofRequest.toString(), null).get();
             JSONObject credentialForCSO = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.CSO_INFO_PROOF_REQUEST_REFERENT);
-            JSONObject credentialForDSODistrict = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.DSO_DISTRICT_PROOF_REQUEST_REFERENT);
             JSONObject credentialForCertifiedDID = CredentialUtils.getProofCredentialsForReferent(credentialsSearch, ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT);
             credentialsSearch.close();
 
@@ -540,10 +539,6 @@ public final class CredentialUtils {
                     .put("requested_attributes", new JSONObject()
                             .put(ProofUtils.CSO_INFO_PROOF_REQUEST_REFERENT, new JSONObject()
                                     .put("cred_id", credentialForCSO.getString("referent"))
-                                    .put("revealed", revealed)
-                            )
-                            .put(ProofUtils.DSO_DISTRICT_PROOF_REQUEST_REFERENT, new JSONObject()
-                                    .put("cred_id", credentialForDSODistrict.getString("referent"))
                                     .put("revealed", revealed)
                             )
                             .put(ProofUtils.CERTIFIED_DID_PROOF_REQUEST_REFERENT, new JSONObject()

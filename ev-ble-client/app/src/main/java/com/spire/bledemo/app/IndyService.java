@@ -87,7 +87,8 @@ public class IndyService extends Service {
     private String csoCredSchemaId;
     private String csoCredDefId;
     private String didSchemaId;
-    private String didDefId;
+    private String didCsoDefId;
+    private String didErDefId;
 
     private JSONObject exchangeInvitation;
     private JSONObject exchangeRequest;
@@ -130,7 +131,7 @@ public class IndyService extends Service {
         }
         return null;
     }
-    
+
     public byte[] createMicroChargeRequest() {
         try {
             return CryptoUtils.encryptMessage(csVerKey, c.revealNextChainStep().getBytes());
@@ -146,12 +147,12 @@ public class IndyService extends Service {
             mErChargingCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDid, erCredDefId, mSofiePool);
 
             mDidCertifiedCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDid, didSchemaId, mSofiePool);
-            mEvDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDid, didDefId, mSofiePool);
+            mEvDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(erDid, didErDefId, mSofiePool);
+            mCsDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDid, didCsoDefId, mSofiePool);
 
             mCsoInfoCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(csoDid, csoCredSchemaId, mSofiePool);
             mCsoInfoCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDid, csoCredDefId, mSofiePool);
 
-            mCsDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDid, didDefId, mSofiePool);
 
         } catch (Exception e) {
             if (e instanceof IndyException) {
@@ -176,7 +177,7 @@ public class IndyService extends Service {
             csoCredSchemaId = credentialIds.getString(CSO_SCHEMA_ID);
             csoCredDefId = credentialIds.getString(CSO_DEF_ID);
             didSchemaId = credentialIds.getString(DID_SCHEMA_ID);
-            didDefId = credentialIds.getString(DID_DEF_ID);
+            didCsoDefId = credentialIds.getString(DID_DEF_ID);
 
             readLedger();
 
@@ -207,7 +208,7 @@ public class IndyService extends Service {
             // 10. Exchange request (step 6)
 
             // 10.2 Create exchange request
-            exchangeRequest = ConnectionUtils.createExchangeRequest(exchangeInvitation, "CS", evDID.getVerkey());
+            exchangeRequest = ConnectionUtils.createExchangeRequest(exchangeInvitation.getJSONObject("invitation"), "CS", evDID.getVerkey());
             exchangeRequest.put("did", evDID.getDid());
             Log.w(this.getClass().toString(), String.format("Exchange request message created: %s", exchangeRequest));
 
@@ -222,13 +223,15 @@ public class IndyService extends Service {
             erDid = storage.getString(ER_DID, null);
             erCredSchemaId = storage.getString(ER_SCHEMA_ID, null);
             erCredDefId = storage.getString(ER_DEF_ID, null);
+            didSchemaId = storage.getString(DID_SCHEMA_ID, null);
+            didErDefId = storage.getString(DID_DEF_ID, null);
 
             JSONObject credentialIds = new JSONObject()
                     .put(ER_DID, erDid)
                     .put(ER_SCHEMA_ID, erCredSchemaId)
                     .put(ER_DEF_ID, erCredDefId)
                     .put(DID_SCHEMA_ID, didSchemaId)
-                    .put(DID_DEF_ID, didDefId);
+                    .put(DID_DEF_ID, didErDefId);
 
 
             // complete request message = {proof_request: <proof request for EV>, proof: <proof for CS>, request: <request invitation message as in protocol spec>, signature: <signature over all previous content>}
@@ -334,7 +337,7 @@ public class IndyService extends Service {
             // 12 Send exchange complete (step 9)
             // 11.5 Generate exchange complete message
 
-             JSONObject exchangeCompleteSent = ConnectionUtils.createExchangeComplete(exchangeInvitation, exchangeResponse);
+             JSONObject exchangeCompleteSent = ConnectionUtils.createExchangeComplete(exchangeInvitation.getJSONObject("invitation"), exchangeResponse.getJSONObject("response"));
 
 
             // 11.3 Generate information to send back to the CS
@@ -580,6 +583,12 @@ public class IndyService extends Service {
                     .putString(DID_DEF_ID, evDIDCertificationCredentialDefinition.getCredDefId())
                     .apply();
 
+            // Adding Credential Ids
+            erDid = storage.getString(ER_DID, null);
+            erCredSchemaId = storage.getString(ER_SCHEMA_ID, null);
+            erCredDefId = storage.getString(ER_DEF_ID, null);
+            didSchemaId = storage.getString(DID_SCHEMA_ID, null);
+            didErDefId = storage.getString(DID_DEF_ID, null);
 
         } catch (Exception e) {
             if (e instanceof IndyException) {

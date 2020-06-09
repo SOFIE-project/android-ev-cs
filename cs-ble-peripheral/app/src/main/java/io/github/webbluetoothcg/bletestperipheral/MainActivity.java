@@ -123,13 +123,18 @@ public class MainActivity extends Activity {
             case 4:
                 // verify EV customer proof
                 msg = mBluetoothLeService.getBLEMessage();
-                mIndyService.parseExchangeComplete(msg);
+                Boolean isCommitmentValid = mIndyService.parseExchangeComplete(msg);
+                if(isCommitmentValid) {
+                    mBluetoothLeService.writeLongLocalCharacteristic(isCommitmentValid.toString().getBytes());
+                }
                 break;
 
             case 5:
                 msg = mBluetoothLeService.getBLEMessage();
-                if (mIndyService.verifyHashstep(msg)) {
+                isCommitmentValid = mIndyService.verifyHashstep(msg);
+                if (isCommitmentValid) {
                     updatePieProgress(mPieProgress.getLevel() +  10);
+                    mBluetoothLeService.writeLongLocalCharacteristic(isCommitmentValid.toString().getBytes());
                 }
 
                 break;

@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
 
     private IndyService mIndyService;
     private BluetoothLeService mBluetoothLeService;
+    private int i = 0;
 
 
     // OnCreate, called once to initialize the activity.
@@ -90,6 +91,7 @@ public class MainActivity extends Activity {
         mCsoProof.setText(R.string.dash_placeholder);
 
         // disconnect and start again.
+        i=0;
         updatePieProgress(0);
         nextStage(0);
     }
@@ -308,6 +310,7 @@ public class MainActivity extends Activity {
                     nextStage(3);
                     sendExchangeComplete();
                     nextStage(4);
+                } else if(stage == 4 || stage == 5) {
                     startEVCharging();
                 } else {
                     writeLine("Unexpected Message Received");
@@ -319,11 +322,12 @@ public class MainActivity extends Activity {
     };
 
     private void startEVCharging() {
-        for (int i=1; i<=10;i++) {
+        if (i<10) {
             byte[] mircoCharge = mIndyService.createMicroChargeRequest();
             mBluetoothLeService.write(mircoCharge);
             nextStage(5);
             updatePieProgress(mPieProgress.getLevel() + 10);
+            i++;
         }
     }
 
