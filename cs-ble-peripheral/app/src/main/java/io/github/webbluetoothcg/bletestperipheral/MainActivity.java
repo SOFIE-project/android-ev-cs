@@ -208,6 +208,14 @@ public class MainActivity extends Activity {
 
             if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
                 writeLine("Indy Initialized");
+
+//                String[] tmList = intent.getStringArrayExtra("times");
+//                writeLine("List starts");
+//            for (String tm : tmList) {
+//                writeLine(tm);
+//            }
+
+
                 mBluetoothLeService.startGattServer();
             } else if (BluetoothLeService.BROADCASTING.equals(action)) {
                 writeLine("Broadcasting!");

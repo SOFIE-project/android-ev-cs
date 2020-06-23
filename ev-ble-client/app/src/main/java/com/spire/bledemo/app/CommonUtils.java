@@ -15,6 +15,11 @@ public class CommonUtils {
 
     private ArrayList<Long> timeList = new ArrayList<>();
 
+    private String tag;
+
+    public CommonUtils(String t) {
+        tag = t;
+    }
 
     public synchronized void startTimer() {
         timer_start = SystemClock.elapsedRealtime();
@@ -35,9 +40,9 @@ public class CommonUtils {
 
         String normalizedText;
         if (text.length() > 100) {
-            normalizedText = text.subSequence(0, 100) + "..." + text.length();
+            normalizedText = tag + " " + text.subSequence(0, 100) + "..." + text.length();
         } else {
-            normalizedText = text;
+            normalizedText = tag + " " + text;
         }
 
         Log.i(TAG, normalizedText);

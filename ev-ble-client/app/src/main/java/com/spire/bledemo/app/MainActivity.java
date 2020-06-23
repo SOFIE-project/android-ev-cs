@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     private IndyService mIndyService;
     private BluetoothLeService mBluetoothLeService;
     private int i = 0;
+    private CommonUtils timer;
 
 
     // OnCreate, called once to initialize the activity.
@@ -74,6 +75,8 @@ public class MainActivity extends Activity {
 
         Intent indyServiceIntent = new Intent(this, IndyService.class);
         bindService(indyServiceIntent, mIndyServiceConnection, BIND_AUTO_CREATE);
+
+        timer = new CommonUtils("MainActivity");
     }
 
 
@@ -85,6 +88,8 @@ public class MainActivity extends Activity {
 
     // Start EV charging manually
     public void startCharging() {
+        timer.stopTimer();
+
         mEvDid.setText(R.string.dash_placeholder);
         mCsDid.setText(R.string.dash_placeholder);
         mCsoProof.setText(R.string.dash_placeholder);
@@ -255,6 +260,7 @@ public class MainActivity extends Activity {
             if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
                 writeLine("Indy Initialized");
                 writeLine("Scanning for devices...");
+                timer.startTimer();
                 mBluetoothLeService.startScan();
             } else if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
                 writeLine("Connected");
@@ -312,6 +318,10 @@ public class MainActivity extends Activity {
             updatePieProgress(mPieProgress.getLevel() + 10);
             i++;
             writeLine("Sent Hashstep " + i);
+        } else {
+            timer.writeLine("TotalTime");
+            timer.stopTimer();
+            timer.writeLine("TotalTimeEnd");
         }
     }
 

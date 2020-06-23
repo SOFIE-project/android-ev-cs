@@ -484,7 +484,7 @@ public class BluetoothLeService extends Service {
         mRxBuffer = new MessageBuffer(mtuLength);
         createScanFilter();
 
-        mCommonUtils = new CommonUtils();
+        mCommonUtils = new CommonUtils("BluetoothLeService");
 
         bleOperationHandlerThread.start();
         bleHandler = new Handler(bleOperationHandlerThread.getLooper());

@@ -212,13 +212,13 @@ public class IndyService extends Service {
             // 10.2 Create exchange request
             exchangeRequest = ConnectionUtils.createExchangeRequest(exchangeInvitation.getJSONObject("invitation"), "CS", evDID.getVerkey());
             exchangeRequest.put("did", evDID.getDid());
-            Log.w(this.getClass().toString(), String.format("Exchange request message created: %s", exchangeRequest));
+            Log.w(this.getClass().toString(), String.format("XXL Exchange request message(EV DID length) created: %s", exchangeRequest.toString().getBytes().length));
 
 
             // 11. Proof requests creation             // 9.3 Create CS proof request
             Log.i(this.getClass().toString(), "Creating CSO Info + DSO district proof request...");
             csProofRequestSent = ProofUtils.createCSOInfoAndDSODistrictAndCertifiedDIDProofRequest(csoDid, mCsoInfoCredentialDefFromLedger.getString("id"), mCsDIDCertificationCredentialDefFromLedger.getString("id"));
-            Log.i(this.getClass().toString(), String.format("CSO Info + DSO district proof request created: %s", csProofRequestSent.toString().length()));
+            Log.i(this.getClass().toString(), String.format("CSO Info + DSO district proof request created: %s", csProofRequestSent.toString().getBytes().length));
 
 
             // Adding Credential Ids
@@ -288,6 +288,7 @@ public class IndyService extends Service {
             // 11.1.4 Verify proof provided by CS
 
             JSONObject csProofReceived = exchangeResponse.getJSONObject("proof");
+            Log.w(this.getClass().toString(), String.format("CS proof length: %s", csProofReceived.toString().getBytes().length));
             boolean isCSProofSignatureValid = ProofUtils.verifyCSOInfoDSODistrictCertifiedDIDProofCrypto(
                     csProofRequestSent,
                     csProofReceived,
@@ -319,24 +320,35 @@ public class IndyService extends Service {
             }
 
             evProofRequestReceived = exchangeResponse.getJSONObject("proof_request");
+            Log.w(this.getClass().toString(), String.format("EV proof request  length: %s", evProofRequestReceived.toString().getBytes().length));
+
 
             // EV needs verify this signature to confirm owning of DID and also make it demonstrable,
             // if it is not the same when signed by EV, CS will reject it.
 
             proofSignature = exchangeResponse.getString("signature");
 
+            mCommonUtils.writeLine("Signature Verificaition");
+            mCommonUtils.stopTimer();
+
+
+
             // Ring Signature call
-            String pbKeyList = CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN1")
-                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN2")
-                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN3")
-                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN4")
-                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-AN5")
-                    + "|" + CryptoUtils.generateAndStoreKey(evWallet, "00000000000000000000000000CS-DID");
+            String pbKeyList = csProofReceived.getString("dsd");
 
             if(! Ring.verify(csProofReceived.toString().getBytes(), Base64.getDecoder().decode(proofSignature), pbKeyList)) {
                 System.exit(0);
             }
 
+
+
+
+//            if(! CryptoUtils.verifyMessageSignature(csVerKey, csProofReceived.toString().getBytes(), Base64.getDecoder().decode(proofSignature) )){
+//                System.exit(0);
+//            }
+
+            mCommonUtils.stopTimer();
+            mCommonUtils.writeLine("Signature Verificaition Ends");
 
             mCommonUtils.stopTimer();
 
@@ -478,7 +490,7 @@ public class IndyService extends Service {
             IndyUtils.initialise(getApplicationContext(), false);
 
             // X. IF credentials are generated, skip after this step to indy Initialization. But how is it going to know?
-            if (!storage.getString(ER_DEF_ID, null).isEmpty()) {
+/*            if (!storage.getString(ER_DEF_ID, null).isEmpty()) {
                 // Adding Credential Ids
                 erDid = storage.getString(ER_DID, null);
                 erCredSchemaId = storage.getString(ER_SCHEMA_ID, null);
@@ -486,7 +498,7 @@ public class IndyService extends Service {
                 didSchemaId = storage.getString(DID_SCHEMA_ID, null);
                 didErDefId = storage.getString(DID_DEF_ID, null);
                 return;
-            }
+            }*/
 
             // 2. Wallets creation
 
@@ -640,7 +652,7 @@ public class IndyService extends Service {
 
 
     public void initialize() {
-        mCommonUtils = new CommonUtils();
+        mCommonUtils = new CommonUtils("IndyService");
         storage = getSharedPreferences("IndyService", MODE_PRIVATE);
         indyOperationHandlerThread.start();
         indyHandler = new Handler(indyOperationHandlerThread.getLooper());

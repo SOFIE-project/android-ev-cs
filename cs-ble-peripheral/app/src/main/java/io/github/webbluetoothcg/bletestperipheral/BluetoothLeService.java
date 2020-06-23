@@ -427,7 +427,7 @@ public class BluetoothLeService extends Service {
       mTxBuffer = new MessageBuffer(mtuLength);
       mRxBuffer = new MessageBuffer(mtuLength);
 
-      mCommonUtils = new CommonUtils();
+      mCommonUtils = new CommonUtils("MyBLE");
 
 
       mBluetoothDevices = new HashSet<>();

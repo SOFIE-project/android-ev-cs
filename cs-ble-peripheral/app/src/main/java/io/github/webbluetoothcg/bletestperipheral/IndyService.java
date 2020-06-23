@@ -283,9 +283,11 @@ public class IndyService extends Service {
             );
             Log.i(this.getClass().toString(), String.format("Proof for CSO Info + DSO district proof request created: %s", csoInfodsoDistrictProofRevealing.toString().length()));
 
+            mCommonUtils.writeLine("Signature Generation");
+            mCommonUtils.stopTimer();
             // Creating signature on cs proof
-            //byte[] proofSignatureRaw = CryptoUtils.generateMessageSignature(csWallet, csDID.getVerkey(), csoInfodsoDistrictProofRevealing.toString().getBytes());
-            //proofSignature = Base64.getEncoder().encodeToString(proofSignatureRaw);
+//            byte[] proofSignatureRaw = CryptoUtils.generateMessageSignature(csWallet, csDID.getVerkey(), csoInfodsoDistrictProofRevealing.toString().getBytes());
+//            proofSignature = Base64.getEncoder().encodeToString(proofSignatureRaw);
 
             // Ring Signature call
             String pbKeyList = CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN1")
@@ -294,8 +296,13 @@ public class IndyService extends Service {
                     + "|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN4")
                     + "|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-AN5");
 
+
             byte[] proofSignatureRaw  = Ring.sign(csoInfodsoDistrictProofRevealing.toString().getBytes(), "00000000000000000000000000CS-DID".getBytes(), pbKeyList );
             proofSignature = Base64.getEncoder().encodeToString(proofSignatureRaw);
+
+            mCommonUtils.stopTimer();
+            mCommonUtils.writeLine(proofSignature.length() + " ");
+            mCommonUtils.writeLine("Signature Generation Ends");
 
             Log.i(this.getClass().toString(), "Creating EV charging credential proof request...");
             erChargingProofRequest = ProofUtils.createERChargingAndCertifiedDIDProofRequest(erDid, mErChargingCredentialDefFromLedger.getString("id"), mEvDIDCertificationCredentialDefFromLedger.getString("id"));
@@ -485,7 +492,7 @@ public class IndyService extends Service {
 
     public void initialize() {
 
-        mCommonUtils = new CommonUtils();
+        mCommonUtils = new CommonUtils("Ring Sing");
 
         storage = getSharedPreferences("IndyService", MODE_PRIVATE);
 
@@ -519,15 +526,21 @@ public class IndyService extends Service {
     private void generateCredentials() {
 
         try {
+
+            mCommonUtils.writeLine("Credential Generation");
+            mCommonUtils.startTimer();
             // 1. Indy initialisation
 
             Log.i(this.getClass().toString(), "Initialising Indy context...");
             IndyUtils.initialise(getApplicationContext(), false);
 
-            // X. IF credentials are generated, skip after this step to indy Initialization. But how is it going to know?
-            if (!storage.getString(CSO_DEF_ID, null).isEmpty()) {
-                return;
-            }
+            // X. IF credentials are generated, skip after this step to indy Initialization.
+           // if (!storage.getString(CSO_DEF_ID, null).isEmpty()) {
+           //     return;
+           // }
+
+            mCommonUtils.writeLine("Initialize Indy");
+            mCommonUtils.stopTimer();
 
             // 2. Wallets creation
 
@@ -536,6 +549,9 @@ public class IndyService extends Service {
             WalletUtils.createCSOWallet();
             WalletUtils.createERWallet();
             WalletUtils.createStewardWallet();
+
+            mCommonUtils.writeLine("Wallet Creation");
+            mCommonUtils.stopTimer();
 
             // 3. Wallets opening
 
@@ -548,6 +564,9 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Opening steward wallet...");
             Wallet stewardWallet = WalletUtils.openStewardWallet();
 
+            mCommonUtils.writeLine("Wallet Opening");
+            mCommonUtils.stopTimer();
+
             // 4. Pool configuration + connection
 
             Log.i(this.getClass().toString(), "Creating test pool configuration...");
@@ -558,6 +577,9 @@ public class IndyService extends Service {
             mSofiePool = PoolUtils.connectToSOFIEPool();
             Log.i(this.getClass().toString(), "Connected to SOFIE pool.");
 
+
+            mCommonUtils.writeLine("Pool Connection");
+            mCommonUtils.stopTimer();
 
             // 5. DIDs creation
             // TODO: Create option for creating multiple CS DIDs and create Anonymity set Credential
@@ -578,6 +600,8 @@ public class IndyService extends Service {
             DidResults.CreateAndStoreMyDidResult erDID = DIDUtils.createAndWriteERDID(erWallet, stewardWallet, stewardDID.getDid(), mSofiePool);
             Log.w(this.getClass().toString(), String.format("ER DID calculated and written on ledger: %s - %s", erDID.getDid(), erDID.getVerkey()));
 
+            mCommonUtils.writeLine("DID Creation");
+            mCommonUtils.stopTimer();
 
             // 6. Credential schemas creation
 
@@ -592,6 +616,9 @@ public class IndyService extends Service {
             AnoncredsResults.IssuerCreateSchemaResult didCertifiedCredentialSchema = CredentialSchemaUtils.createAndWriteCertifiedDIDCredentialSchema(erDID.getDid(), erWallet, mSofiePool);
             mDidCertifiedCredentialSchemaFromLedger = CredentialSchemaUtils.readCredentialSchemaFromLedger(erDID.getDid(), didCertifiedCredentialSchema.getSchemaId(), mSofiePool);
 
+            mCommonUtils.writeLine("Schema Creation");
+            mCommonUtils.stopTimer();
+
             // 7. Credential definitions creation
 
             Log.i(this.getClass().toString(), "Creating and writing on ledger credential definition for CS-CSO info...");
@@ -602,6 +629,8 @@ public class IndyService extends Service {
             AnoncredsResults.IssuerCreateAndStoreCredentialDefResult csDIDCertificationCredentialDefinition = CredentialDefinitionUtils.createAndWriteCSCertifiedDIDCredentialDefinition(csoDID.getDid(), csoWallet, mDidCertifiedCredentialSchemaFromLedger.getJSONObject("object"), mSofiePool);
             mCsDIDCertificationCredentialDefFromLedger = CredentialDefinitionUtils.readCredentialDefinitionFromLedger(csoDID.getDid(), csDIDCertificationCredentialDefinition.getCredDefId(), mSofiePool);
 
+            mCommonUtils.writeLine("Definition Creation");
+            mCommonUtils.stopTimer();
 
             // 8. Credential offers creation
 
@@ -611,12 +640,16 @@ public class IndyService extends Service {
             Log.w(this.getClass().toString(), "Creating credential offer for CS DID certification...");
             JSONObject csCertifiedDIDCredentialOffer = CredentialUtils.createCredentialOffer(csoWallet, mCsDIDCertificationCredentialDefFromLedger.getString("id"));
 
+            mCommonUtils.writeLine("Offer Creation");
+            mCommonUtils.stopTimer();
 
             // Creating wallet master secret
             Log.i(this.getClass().toString(), "Creating master secret for CS wallet...");
             csMasterSecretID = CredentialUtils.createAndSaveCSMasterSecret(csWallet);
             Log.i(this.getClass().toString(), String.format("Master secret for CS wallet created: %s", csMasterSecretID));
 
+            mCommonUtils.writeLine("Master Secret Creation");
+            mCommonUtils.stopTimer();
 
             // 9. Credential requests creation
 
@@ -626,6 +659,20 @@ public class IndyService extends Service {
 
             Log.w(this.getClass().toString(), "Creating credential request for CS DID certification...");
             AnoncredsResults.ProverCreateCredentialRequestResult csCertifiedDIDCredentialRequest = CredentialUtils.createCSCertifiedDIDCredentialRequest(csWallet, csDID.getDid(), csCertifiedDIDCredentialOffer, mCsDIDCertificationCredentialDefFromLedger.getJSONObject("object"), csMasterSecretID);
+
+            mCommonUtils.writeLine("Request Creation");
+            mCommonUtils.stopTimer();
+
+            // R. Create anonymity set
+
+            StringBuilder pbKeyList = new StringBuilder();
+            pbKeyList.append(CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-000"));
+            for( int i=1; i < 20; i++) {
+                pbKeyList.append("|" + CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-" + String.format("%03d", i)));
+            }
+
+            mCommonUtils.writeLine("Anonymity Set Creation");
+            mCommonUtils.stopTimer();
 
             // 10. Credentials creation
 
@@ -638,9 +685,12 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Credential for CS-CSO info saved into CS wallet");
 
             Log.w(this.getClass().toString(), "Creating credential for CS certified DID...");
-            AnoncredsResults.IssuerCreateCredentialResult csCertifiedDIDCredential = CredentialUtils.createCSCertifiedDIDCredential(csoWallet, csCertifiedDIDCredentialOffer, new JSONObject(csCertifiedDIDCredentialRequest.getCredentialRequestJson()), csDID.getDid());
+            AnoncredsResults.IssuerCreateCredentialResult csCertifiedDIDCredential = CredentialUtils.createCSCertifiedDIDCredential(csoWallet, csCertifiedDIDCredentialOffer, new JSONObject(csCertifiedDIDCredentialRequest.getCredentialRequestJson()), pbKeyList.toString()); //csDID.getDid());
             Log.w(this.getClass().toString(), "Saving credential for CS certified DID into CS wallet...");
             WalletUtils.saveCredential(csWallet, new JSONObject(csCertifiedDIDCredentialRequest.getCredentialRequestMetadataJson()), new JSONObject(csCertifiedDIDCredential.getCredentialJson()), mCsDIDCertificationCredentialDefFromLedger.getJSONObject("object"), csCertifiedDIDCredential.getRevocRegDeltaJson() != null ? new JSONObject(csCertifiedDIDCredential.getRevocRegDeltaJson()) : null);
+
+            mCommonUtils.writeLine("CREDENTIAL CREATION, size = " + csCertifiedDIDCredential.getCredentialJson().getBytes().length);
+            mCommonUtils.stopTimer();
 
             // 15. Pool disconnection
 
@@ -649,7 +699,8 @@ public class IndyService extends Service {
             mSofiePool.close();
             Log.i(this.getClass().toString(), "Test pool closed.");
 
-
+            mCommonUtils.writeLine("Pool Disconnect");
+            mCommonUtils.stopTimer();
 
             // 16. Wallets de-initialisation
 
@@ -662,6 +713,17 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Closing steward wallet...");
             stewardWallet.close();
 
+            mCommonUtils.writeLine("Waller closing");
+            mCommonUtils.stopTimer();
+
+//            Log.i("lister", "List starts");
+//            for (String tm : mCommonUtils.getTimeList()) {
+//                Log.i("lister", tm);
+//            }
+
+//            final Intent intent = new Intent(ACTION_INDY_INITIALIZED);
+//            intent.putExtra("times", mCommonUtils.getTimeList());
+//            LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
 
             // Saving ids to local cache.
             storage.edit()
