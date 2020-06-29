@@ -31,7 +31,7 @@ public class CommonUtils {
         timer_end = SystemClock.elapsedRealtime();
         long timeDifference = timer_end - timer_start;
         timeList.add(timeDifference + "");
-       // writeLine("Timer: " + timeDifference + " ms.");
+        writeLine("Timer: " + timeDifference + " ms.");
         timer_start = timer_end;
         timer_end = 0;
     }
@@ -44,8 +44,8 @@ public class CommonUtils {
         } else {
             normalizedText = tag + " " + text;
         }
-        timeList.add(normalizedText);
-        //Log.i(TAG, normalizedText);
+        //timeList.add(normalizedText);
+        Log.i(TAG, normalizedText);
     }
 
     public String[] getTimeList() {

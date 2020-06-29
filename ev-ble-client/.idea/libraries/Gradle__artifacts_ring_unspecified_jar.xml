@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: artifacts:ring:unspecified@jar">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/ring/build/.transforms/75239a3405a6451bf49cf55d8ba246bf/ring/jars/classes.jar!/" />
+      <root url="file://$PROJECT_DIR$/ring/build/.transforms/75239a3405a6451bf49cf55d8ba246bf/ring/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
