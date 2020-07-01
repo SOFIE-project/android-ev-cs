@@ -170,7 +170,7 @@ public class IndyService extends Service {
                     .put("type", "Ed25519Signature2018")
                     .put("created", isoDate)
                     .put("proofPurpose", "assertionMethod")
-                    .put("verficationMethod", csDID.getVerkey())
+                    .put("verificationMethod", csDID.getVerkey())
                     .put("jws", jwsSignature);   // what fields to include in JWS??
 
             presentation.put("proof", proof);
@@ -215,29 +215,34 @@ public class IndyService extends Service {
                 System.exit(0);
             }
 
+            evCred.put("proof", evCredProof);
+
+
             // 11.1 Verify EV Signature
 
             mCommonUtils.writeLine("Signature Verification");
             mCommonUtils.stopTimer();
 
-            JSONObject evPresentation = exchangeResponse.getJSONObject("commitment");
-            JSONObject evPresentationProof = evPresentation.getJSONObject("proof");
-            evPresentation.remove("proof");
+            commitmentMessage = exchangeComplete.getJSONObject("commitment");
+            JSONObject evPresentationProof = commitmentMessage.getJSONObject("proof");
+            commitmentMessage.remove("proof");
 
-            if (!CryptoUtils.verifyMessageSignature(evPresentationProof.getString("verificationMethod"), evPresentation.toString().getBytes(), Base64.getDecoder().decode(evPresentationProof.getString("jws")))) {
+            if (!CryptoUtils.verifyMessageSignature(evPresentationProof.getString("verificationMethod"), commitmentMessage.toString().getBytes(), Base64.getDecoder().decode(evPresentationProof.getString("jws")))) {
                 System.exit(0);
             }
 
-            Log.w(this.getClass().toString(), "Checking if CS DID is the one in credential");
-            if (!expectedEVDID.equals(evPresentationProof.getString("verificationMethod"))) {
-                System.exit(0);
-            }
+            commitmentMessage.put("proof", evPresentationProof);
+
+            Log.w(this.getClass().toString(), "Checking if EV DID is the one in credential");
+            // TODO: get pb key from EV DID
+//            if (!expectedEVDID.equals(evPresentationProof.getString("verificationMethod"))) {
+//                System.exit(0);
+//            }
 
             mCommonUtils.stopTimer();
             mCommonUtils.writeLine("Signature Verification Ends");
 
 
-            commitmentMessage = exchangeComplete.getJSONObject("commitment");
             lastStep = commitmentMessage.getString("hashchain_root");
 
 //            verifyCommitmentSignature();
@@ -544,7 +549,7 @@ public class IndyService extends Service {
                     .put("type", "Ed25519Signature2018")
                     .put("created", isoDate)
                     .put("proofPurpose", "assertionMethod")
-                    .put("verficationMethod", csoDID.getVerkey())
+                    .put("verificationMethod", csoDID.getVerkey())
                     .put("jws", jwsSignature);   // what fields to include in JWS??
 
             csCred.put("proof", proof);

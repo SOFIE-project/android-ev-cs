@@ -163,7 +163,10 @@ public final class DIDUtils {
                 return did;
             }
             DIDUtils.saveDID(did.getDid());
-            JSONObject erRegistrationNymRequest = new JSONObject(Ledger.buildNymRequest(erStewardDID, did.getDid(), did.getVerkey(), "ER", "ENDORSER").get());
+
+            // LOCAL ER DID HACK
+
+            /*JSONObject erRegistrationNymRequest = new JSONObject(Ledger.buildNymRequest(erStewardDID, did.getDid(), did.getVerkey(), "ER", "ENDORSER").get());
             JSONObject requestResult = new JSONObject(Ledger.signAndSubmitRequest(targetPool, erStewardWallet, erStewardDID, erRegistrationNymRequest.toString()).get());
             Log.d(DIDUtils.class.toString(), requestResult.toString());
 
@@ -175,8 +178,8 @@ public final class DIDUtils {
                     Log.w(DIDUtils.class.toString(), "DID previously written on the ledger.");
                 }
             }
-            return did;
-        } catch (InterruptedException | ExecutionException | JSONException e) {
+            return did; */
+        } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         }
         return did;

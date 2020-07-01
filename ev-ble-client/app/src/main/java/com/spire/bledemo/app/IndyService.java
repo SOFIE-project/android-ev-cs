@@ -193,6 +193,8 @@ public class IndyService extends Service {
                 System.exit(0);
             }
 
+            csCred.put("proof", csCredProof);
+
 
             // 11.1 Verify CS info
             // 11.1.4 Verify proof provided by CS
@@ -219,10 +221,14 @@ public class IndyService extends Service {
                 System.exit(0);
             }
 
+            // reinstate proof
+            csPresentation.put("proof", csPresentationProof);
+
             Log.w(this.getClass().toString(), "Checking if CS DID is the one in credential");
-            if (!expectedCSDID.equals(csPresentationProof.getString("verificationMethod"))) {
-                System.exit(0);
-            }
+            // TODO: change expected CS DID to public key and check // handle RS case too
+//            if (!expectedCSDID.equals(csPresentationProof.getString("verificationMethod"))) {
+//                System.exit(0);
+//            }
 
 
             mCommonUtils.stopTimer();
@@ -292,7 +298,7 @@ public class IndyService extends Service {
                     .put("type", "Ed25519Signature2018")
                     .put("created", isoDate)
                     .put("proofPurpose", "assertionMethod")
-                    .put("verficationMethod", evDID.getVerkey())
+                    .put("verificationMethod", evDID.getVerkey())
                     .put("jws", jwsSignature);
 
             commitmentMessage.put("proof", proof);
@@ -406,7 +412,7 @@ public class IndyService extends Service {
             // 3. Wallets opening
 
             Log.i(this.getClass().toString(), "Opening EV wallet...");
-            Wallet evWallet = WalletUtils.openEVWallet();
+            evWallet = WalletUtils.openEVWallet();
             Log.i(this.getClass().toString(), "Opening ER wallet...");
             Wallet erWallet = WalletUtils.openERWallet();
             Log.i(this.getClass().toString(), "Opening steward wallet...");
@@ -419,7 +425,7 @@ public class IndyService extends Service {
             PoolUtils.createSOFIEPoolConfig();
 
             Log.i(this.getClass().toString(), "Connecting to SOFIE pool...");
-            mSofiePool = PoolUtils.connectToSOFIEPool();
+            //mSofiePool = PoolUtils.connectToSOFIEPool();
 
 
             // 5. DIDs creation
@@ -459,7 +465,7 @@ public class IndyService extends Service {
                     .put("type", "Ed25519Signature2018")
                     .put("created", isoDate)
                     .put("proofPurpose", "assertionMethod")
-                    .put("verficationMethod", erDID.getVerkey())
+                    .put("verificationMethod", erDID.getVerkey())
                     .put("jws", jwsSignature);   // what fields to include in JWS??
 
             evCred.put("proof", proof);
@@ -471,7 +477,7 @@ public class IndyService extends Service {
 
 
             Log.i(this.getClass().toString(), "Closing test pool...");
-            mSofiePool.close();
+            //mSofiePool.close();
             Log.i(this.getClass().toString(), "Test pool closed.");
 
 
@@ -483,9 +489,6 @@ public class IndyService extends Service {
             Log.i(this.getClass().toString(), "Closing steward wallet...");
             stewardWallet.close();
             Log.i(this.getClass().toString(), "Steward wallet closed.");
-            Log.i(this.getClass().toString(), "Closing EV wallet...");
-            evWallet.close();
-            Log.i(this.getClass().toString(), "EV wallet closed.");
 
             // Saving ids to local cache.
             storage.edit()
@@ -538,7 +541,7 @@ public class IndyService extends Service {
             // 14. Pool disconnection
 
             Log.i(this.getClass().toString(), "Closing test pool...");
-            mSofiePool.close();
+            //mSofiePool.close();
             Log.i(this.getClass().toString(), "Test pool closed.");
 
             // 15. Wallets de-initialisation
