@@ -32,8 +32,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -55,8 +57,10 @@ public class MainActivity extends Activity {
     private TextView mStatusText, messages;
     private TextView mEvName, mEvMac, mEvDid, mCsDid, mCsoProof, mCsSignature;
     private ImageView chargeProgress;
+    private Switch mCredSwitch;
 
     private PieProgressDrawable mPieProgress;
+    private CommonUtils mCommonUtils;
 
 
     // Write some text to the messages text view.
@@ -101,8 +105,9 @@ public class MainActivity extends Activity {
     public void handleEvent(int newState) {
         switch (newState) {
             case 0: // write did to rx
+                mCommonUtils.startTimer();
                 byte[] tempDID = mIndyService.createExchangeInvitation();
-                Log.v(TAG, "Started sending did: " + System.currentTimeMillis());
+                mCommonUtils.stopTimer();
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID);
                 writeLine("Sending Exchange Invitation");
                 break;
@@ -113,12 +118,17 @@ public class MainActivity extends Activity {
             case 2:
                 // verify the proof request validity or throw error, reset state and disconnect client
                 byte[] msg = mBluetoothLeService.getBLEMessage();
+                mCommonUtils.startTimer();
                 String evDid = mIndyService.parseExchangeRequest(msg);
+                mCommonUtils.stopTimer();
+
                 mEvDid.setText(evDid);
 
                 // write real DID
+                mCommonUtils.startTimer();
                 byte[] tempDID2 = mIndyService.createExchangeResponse();
-                Log.v(TAG, "Started sending real did: " + System.currentTimeMillis());
+                mCommonUtils.stopTimer();
+
                 mBluetoothLeService.writeLongLocalCharacteristic(tempDID2);
                 mCsDid.setText(mIndyService.getCsDid());
                 writeLine("Sending Exchange Response");
@@ -130,7 +140,10 @@ public class MainActivity extends Activity {
             case 4:
                 // verify EV customer proof
                 msg = mBluetoothLeService.getBLEMessage();
+                mCommonUtils.startTimer();
                 Boolean isCommitmentValid = mIndyService.parseExchangeComplete(msg);
+                mCommonUtils.stopTimer();
+
                 if(isCommitmentValid) {
                     mBluetoothLeService.writeLongLocalCharacteristic(isCommitmentValid.toString().getBytes());
                 }
@@ -145,7 +158,7 @@ public class MainActivity extends Activity {
                     updatePieProgress(mPieProgress.getLevel() +  10);
                     mBluetoothLeService.writeLongLocalCharacteristic(isCommitmentValid.toString().getBytes());
                 }
-                writeLine("Received hashstep");
+                writeLine("Received hashstep " + mPieProgress.getLevel()/10);
                 break;
         }
     }
@@ -163,12 +176,14 @@ public class MainActivity extends Activity {
         // Grab references to UI elements.
         mStatusText = findViewById(R.id.status_text);
         messages = (TextView) findViewById(R.id.messages);
-        mEvName = findViewById(R.id.cs_name_text);
+        //mEvName = findViewById(R.id.cs_name_text);
         mEvMac = findViewById(R.id.cs_mac_text);
         mEvDid = findViewById(R.id.ev_did_text);
         mCsDid = findViewById(R.id.cs_did_text);
         mCsoProof = findViewById(R.id.csoProofText);
         mCsSignature = findViewById(R.id.csSignatureText);
+        mCredSwitch = findViewById(R.id.cred_switch);
+
 
         mPieProgress = new PieProgressDrawable();
         mPieProgress.setColor(ContextCompat.getColor(this, R.color.f_green));
@@ -185,7 +200,7 @@ public class MainActivity extends Activity {
         Intent indyServiceIntent = new Intent(this, IndyService.class);
         bindService(indyServiceIntent, mIndyServiceConnection, BIND_AUTO_CREATE);
 
-
+        mCommonUtils = new CommonUtils("myMain");
     }
 
 
@@ -215,14 +230,13 @@ public class MainActivity extends Activity {
 //                writeLine(tm);
 //            }
 
-
                 mBluetoothLeService.startGattServer();
             } else if (BluetoothLeService.BROADCASTING.equals(action)) {
                 writeLine("Broadcasting!");
                 mStatusText.setText("Broadcasting");
             } else if (BluetoothLeService.EV_CONNECTED.equals(action)) {
                 String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
-                mEvName.setText(msg.split(",")[0]);
+                //mEvName.setText(msg.split(",")[0]);
                 mEvMac.setText(msg.split(",")[1]);
                 mStatusText.setText("Connected");
                 writeLine("Connected");
@@ -270,6 +284,13 @@ public class MainActivity extends Activity {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             mIndyService = ((IndyService.LocalBinder) service).getService();
             mIndyService.initialize();
+            mCredSwitch.setChecked(mIndyService.getCredType());
+            mCredSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                    mIndyService.saveCredType(b);
+                }
+            });
         }
 
         @Override

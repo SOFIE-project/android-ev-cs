@@ -79,6 +79,7 @@ public class IndyService extends Service {
 
     private HashChain c;
     private JSONObject csCred;
+    private boolean mRingCredType = false;
 
     private String[] splitMessage(String payload) {
         return payload.split("\\|");
@@ -149,8 +150,12 @@ public class IndyService extends Service {
             // 10.6 Encrypt+sign and send message
 
             byte[] completeExchangeRequestSentRaw = completeExchangeRequestSent.toString().getBytes();
+
+            mCommonUtils.stopTimer();
             completeExchangeRequestSentEncrypted = CryptoUtils.encryptMessage(csInvKey, completeExchangeRequestSentRaw);
             Log.w(this.getClass().toString(), String.format("Signature added and message encrypted. Original message: %s", completeExchangeRequestSent));
+            mCommonUtils.writeLine("req enc");
+            mCommonUtils.stopTimer();
 
 
             mCommonUtils.stopTimer();
@@ -175,7 +180,10 @@ public class IndyService extends Service {
 
         try {
 
+            mCommonUtils.stopTimer();
             exchangeResponse = new JSONObject(new String(CryptoUtils.decryptMessage(evWallet, evDID.getVerkey(), exchangeResponseBytes)));
+            mCommonUtils.writeLine("resp dec");
+            mCommonUtils.stopTimer();
 
             csDid = exchangeResponse.getJSONObject("response").getString("did");
             csVerKey = exchangeResponse.getJSONObject("response").getString("verkey");
@@ -187,11 +195,14 @@ public class IndyService extends Service {
             JSONObject csCredProof = csCred.getJSONObject("proof");
             csCred.remove("proof");
 
-            String expectedCSDID = csCred.getJSONObject("credentialSubject").getString("id");
 
+            mCommonUtils.stopTimer();
             if (!CryptoUtils.verifyMessageSignature(csCredProof.getString("verificationMethod"), csCred.toString().getBytes(), Base64.getDecoder().decode(csCredProof.getString("jws")))) {
                 System.exit(0);
             }
+            mCommonUtils.writeLine("resp cred verify");
+            mCommonUtils.stopTimer();
+
 
             csCred.put("proof", csCredProof);
 
@@ -203,23 +214,31 @@ public class IndyService extends Service {
             mCommonUtils.writeLine("Signature Verification");
             mCommonUtils.stopTimer();
 
-
-            // Ring Signature call ALTERNATIVELY
-//            String pbKeyList = csProofReceived.getString("dsd");
-//
-//            if(! Ring.verify(csProofReceived.toString().getBytes(), Base64.getDecoder().decode(proofSignature), pbKeyList)) {
-//                System.exit(0);
-//            }
-
             // EV needs verify this signature to confirm owning of DID and also make it demonstrable,
             // if it is not the same when signed by EV, CS will reject it.
             JSONObject csPresentation = exchangeResponse.getJSONObject("presentation");
             JSONObject csPresentationProof = csPresentation.getJSONObject("proof");
             csPresentation.remove("proof");
 
-            if (!CryptoUtils.verifyMessageSignature(csPresentationProof.getString("verificationMethod"), csPresentation.toString().getBytes(), Base64.getDecoder().decode(csPresentationProof.getString("jws")))) {
-                System.exit(0);
+
+            JSONArray pbKeyList = csCred.getJSONObject("credentialSubject").getJSONArray("id");
+
+            mCommonUtils.stopTimer();
+            if (pbKeyList.length() > 1) {
+                mRingCredType = true;
+                // RING SIGNATURE VERIFICATION ALTERNATIVELY
+                String pbKeyListString = pbKeyList.join("|").replaceAll("\"", "");
+                if (!Ring.verify(csPresentation.toString().getBytes(), Base64.getDecoder().decode(csPresentationProof.getString("jws")), pbKeyListString)) {
+                    System.exit(0);
+                }
+            } else {
+                mRingCredType = false;
+                if (!CryptoUtils.verifyMessageSignature(csPresentationProof.getString("verificationMethod"), csPresentation.toString().getBytes(), Base64.getDecoder().decode(csPresentationProof.getString("jws")))) {
+                    System.exit(0);
+                }
             }
+            mCommonUtils.writeLine("resp sign verify");
+            mCommonUtils.stopTimer();
 
             // reinstate proof
             csPresentation.put("proof", csPresentationProof);
@@ -279,19 +298,28 @@ public class IndyService extends Service {
             long start = System.currentTimeMillis();
             c = new HashChain("SEED", 10, "SHA-256");
             long end = System.currentTimeMillis();
+            mCommonUtils.writeLine("cmt hash " + (end-start));
             Log.w(this.getClass().toString(), String.format("Total time: %d ms", (end-start)));
             String rootStep = c.revealNextChainStep();
 
 
             // Creating payment commitment
             JSONObject commitmentMessage = new JSONObject()
-                    .put("cs_signature", csDid)
                     .put("hashchain_root", rootStep)
                     .put("maxChainLength", 10)
                     .put("timestamp", System.currentTimeMillis() / 1000L)
                     .put("hashchain_value", 0.1);
 
+            if(mRingCredType) {
+                commitmentMessage.put("cs_signature", getCsSignature());
+            } else {
+                commitmentMessage.put("cs_signature", csDid);
+            }
+
+            mCommonUtils.stopTimer();
             String jwsSignature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(evWallet, evDID.getVerkey(), commitmentMessage.toString().getBytes()));
+            mCommonUtils.writeLine("cmt sign");
+            mCommonUtils.stopTimer();
 
             String isoDate = getISODate();
             JSONObject proof = new JSONObject()
@@ -307,8 +335,9 @@ public class IndyService extends Service {
                     .put("commitment", commitmentMessage)
                     .put("verifiableCredential", verifiableCredential);
 
+            mCommonUtils.stopTimer();
             exchangeCompleteSentEncrypted = CryptoUtils.encryptMessage(csVerKey, exchangeCompleteSent.toString().getBytes());
-
+            mCommonUtils.writeLine("cmt enc");
             mCommonUtils.stopTimer();
 
         } catch (Exception e) {
@@ -391,6 +420,7 @@ public class IndyService extends Service {
 
             // X. IF credentials are generated, skip after this step to indy Initialization.
             if (!storage.getString(EV_CRED, "").isEmpty()) {
+//                if(false) {
                 erDid = storage.getString(ER_DID, null);
                 evCred = new JSONObject(storage.getString(EV_CRED, null));
 
@@ -458,6 +488,7 @@ public class IndyService extends Service {
                     .put("issuanceDate", isoDate)
                     .put("expirationDate","2024-12-31T23:59:59Z");
 
+            mCommonUtils.stopTimer();
             String jwsSignature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(erWallet, erDID.getVerkey(), evCred.toString().getBytes()));
             mCommonUtils.writeLine("signature size = " + jwsSignature.getBytes().length);
 

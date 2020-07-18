@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
 
     // Start EV charging manually
     public void startCharging() {
+        timer.writeLine("Time from Ble init to protocol start");
         timer.stopTimer();
 
         mEvDid.setText(R.string.dash_placeholder);
@@ -172,7 +173,10 @@ public class MainActivity extends Activity {
 // EV - CS communication message building functions
 
     public void sendExchangeRequest() {
+        timer.writeLine("reset");
+        timer.stopTimer();
         byte[] message = mIndyService.createExchangeRequest();
+        timer.writeLine("req " + message.length);
         mEvDid.setText(mIndyService.getEvDid());
         writeLine("Sending Exchange Request");
         mBluetoothLeService.write(message);
@@ -188,7 +192,11 @@ public class MainActivity extends Activity {
 
     //Sends the proof  from file via BLE
     private void sendExchangeComplete() {
+        timer.writeLine("reset");
+        timer.stopTimer();
         byte[] msg = mIndyService.createExchangeComplete();
+        timer.writeLine("comp " + msg.length);
+        timer.stopTimer();
         writeLine("Sending Exchange Complete");
         mBluetoothLeService.write(msg);
     }
@@ -287,17 +295,34 @@ public class MainActivity extends Activity {
                 byte[] msg = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
                 int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, 0);
                 if (stage == 0) {
+                    timer.writeLine("reset");
+                    timer.stopTimer();
                     mIndyService.parseExchangeInvitation(msg);
+                    timer.writeLine("inv " + msg.length);
+                    timer.stopTimer();
+
                     nextStage(1);
                     sendExchangeRequest();
+                    timer.stopTimer();
+
                     nextStage(2);
                 } else if (stage == 2) {
+                    timer.writeLine("reset");
+                    timer.stopTimer();
                     mIndyService.parseExchangeResponse(msg);
+                    timer.writeLine("res " + msg.length);
+                    timer.stopTimer();
+
+
                     mCsDid.setText(mIndyService.getCsDid());
                     mCsoProof.setText("Verified");
                     mCsSignature.setText(mIndyService.getCsSignature());
                     nextStage(3);
+
+
                     sendExchangeComplete();
+
+
                     nextStage(4);
                 } else if(stage == 4 || stage == 5) {
                     startEVCharging();
@@ -319,9 +344,10 @@ public class MainActivity extends Activity {
             i++;
             writeLine("Sent Hashstep " + i);
         } else {
-            timer.writeLine("TotalTime");
+            timer.writeLine("Time for protocol");
             timer.stopTimer();
-            timer.writeLine("TotalTimeEnd");
+//            timer.writeLine(mBluetoothLeService.getTimeList().toString());
+            timer.writeLine("ProtocolTimeEnd");
         }
     }
 

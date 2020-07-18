@@ -242,7 +242,7 @@ public class BluetoothLeService extends Service {
 
                         byte[] rxMessage = mRxBuffer.extract();
                         mCommonUtils.writeLine("recieved mesg from cs: " + rxMessage.length);
-                        mCommonUtils.stopTimer();
+//                        mCommonUtils.stopTimer();
 
                         int presetStage = chargingProtocolState.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
                         broadcastUpdate(RX_MSG_RECVD, presetStage, rxMessage);
@@ -272,11 +272,11 @@ public class BluetoothLeService extends Service {
             super.onCharacteristicWrite(gatt, characteristic, status);
             try {
                 if (characteristic.getUuid().equals(CHARGING_STATE_UUID)) {
-                    Log.d(TAG, "onCharacteristicWrite: state written");
+                    mCommonUtils.writeLine("onCharacteristicWrite: state written");
                     mCommonUtils.stopTimer();
                 } else if (characteristic.getStringValue(0).endsWith("ä")) {
-                    Log.d(TAG, "onCharacteristicWrite: long data written");
-                    mCommonUtils.stopTimer();
+                    mCommonUtils.writeLine("onCharacteristicWrite: long data written");
+                    //mCommonUtils.stopTimer();
                 }
 
             } catch (Exception e) {
@@ -326,7 +326,7 @@ public class BluetoothLeService extends Service {
 
 
         // does it matter time wise??
-        commandQueue.request(new Runnable() {
+/*        commandQueue.request(new Runnable() {
             @Override
             public void run() {
                 //  update the characteristic's client descriptor to write client name.
@@ -338,7 +338,7 @@ public class BluetoothLeService extends Service {
                     e.printStackTrace();
                 }
             }
-        });
+        });*/
 
         commandQueue.request(new Runnable() {
             @Override

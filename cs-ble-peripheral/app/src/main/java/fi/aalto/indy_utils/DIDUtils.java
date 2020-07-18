@@ -22,7 +22,7 @@ public final class DIDUtils {
 
     private static final String EV_DID_SEED = "00000000000000000000000000EV-DID";
     private static final String CS_DID_SEED = "00000000000000000000000000CS-DID";
-    private static final String CSO_DID_SEED = "0000000000000000000000000CSO-DID";
+    private static final String CSO_DID_SEED =  "0000000000000000000000000CSO-DID";
     private static final String DSO_DID_SEED = "0000000000000000000000000DSO-DID";
     private static final String ER_DID_SEED = "00000000000000000000000000ER-DID";
     private static final String STEWARD_DID_SEED = "F37DeEe0ba861dFdca5bBF466DAcaB11";                                  //The DID generated from this seed has already been added (externally) to the pool as a STEWARD.

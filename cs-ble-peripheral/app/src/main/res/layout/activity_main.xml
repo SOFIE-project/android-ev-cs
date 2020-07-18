@@ -27,7 +27,27 @@
             android:text="Initializing"
             android:textAppearance="@style/TextAppearance.AppCompat.Large"
             />
+        android:text="Ring Signature \n"
 
+        <TextView
+            android:id="@+id/switch_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_below="@id/status_text_label"
+            android:text="Use Ring Signature"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            />
+
+        <Switch
+            android:id="@+id/cred_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_below="@id/status_text"
+            android:checked="false"
+            android:textColor="@android:color/secondary_text_light"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
 
     </RelativeLayout>
@@ -41,7 +61,7 @@
 
         <TextView
             android:id="@+id/csTitle"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
             android:text="EV Details"
@@ -49,6 +69,8 @@
             android:textColor="@android:color/secondary_text_light"
             android:textAppearance="?android:attr/textAppearanceLarge" />
 
+
+<!--
         <TextView
             android:id="@+id/cs_name_label"
             android:layout_width="wrap_content"
@@ -57,13 +79,14 @@
             android:text="EV Name:"
             android:textColor="@android:color/secondary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
+-->
 
 
         <TextView
             android:id="@+id/cs_mac_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/cs_name_label"
+            android:layout_below="@id/csTitle"
             android:text="EV MAC:"
             android:textColor="@android:color/secondary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
@@ -106,6 +129,7 @@
 
 <!--Values text views start here-->
 
+<!--
         <TextView
             android:id="@+id/cs_name_text"
             android:layout_width="wrap_content"
@@ -115,12 +139,13 @@
             android:text="@string/dash_placeholder"
             android:textColor="@android:color/primary_text_light"
             android:textAppearance="?android:attr/textAppearanceMedium" />
+-->
 
         <TextView
             android:id="@+id/cs_mac_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/cs_name_text"
+            android:layout_below="@id/csTitle"
             android:layout_alignParentRight="true"
             android:text="@string/dash_placeholder"
             android:textColor="@android:color/primary_text_light"
