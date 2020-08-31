@@ -455,6 +455,7 @@ public class BluetoothLeService extends Service {
   public void startGattServer() {
       mGattServer = mBluetoothManager.openGattServer(this, mGattServerCallback);
 
+      if(mGattServer == null) { System.exit(1);}
       // Add a service for a total of three services (Generic Attribute and Generic Access
       // are present by default).
       mGattServer.addService(mBatteryService);
