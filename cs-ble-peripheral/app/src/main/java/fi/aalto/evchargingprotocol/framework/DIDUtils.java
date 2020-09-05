@@ -1,5 +1,10 @@
 package fi.aalto.evchargingprotocol.framework;
 
+import org.bitcoinj.core.Base58;
+import org.json.JSONArray;
+
+import java.util.ArrayList;
+
 public class DIDUtils {
 
     private static Storage didsStorage = new Storage();
@@ -14,6 +19,20 @@ public class DIDUtils {
         PeerDID csDID = new PeerDID(PeerDID.PeerEntity.CS);
         DIDUtils.didsStorage.saveDID(csDID);
         return csDID;
+    }
+
+    public static JSONArray getBulkCSDID(int numDids) {
+        JSONArray pbKeyList = new JSONArray();
+        PeerDID peerDID = new PeerDID(PeerDID.PeerEntity.CS.getSeed());
+        pbKeyList.put(peerDID.getDID());
+        DIDUtils.didsStorage.saveDID(peerDID);
+
+        for( int i=1; i < numDids; i++) {
+            String didSeed = (new String(PeerDID.PeerEntity.CS.getSeed())).substring(0, 28) + String.format("%04d", i);
+            peerDID = new PeerDID(didSeed.getBytes());
+            pbKeyList.put(peerDID.getDID());
+        }
+        return  pbKeyList;
     }
 
     public static IndyDID getERDID() {

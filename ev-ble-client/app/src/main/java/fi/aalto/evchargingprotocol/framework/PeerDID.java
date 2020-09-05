@@ -22,17 +22,18 @@ public class PeerDID implements DID {
     private byte[] decryptionKey;
     private byte[] encryptionKey;
 
+
     public enum PeerEntity {
         EV, CS;
 
         private byte[] seed;
 
         static {
-            EV.seed = "EVDID".getBytes();
-            CS.seed = "CSDID".getBytes();
+            EV.seed = "EV-DID-SECRET-SEED-0000000000000".getBytes();
+            CS.seed = "CS-DID-SECRET-SEED-0000000000000".getBytes();
         }
 
-        private byte[] getSeed() {
+        public byte[] getSeed() {
             return this.seed;
         }
     }
@@ -50,6 +51,21 @@ public class PeerDID implements DID {
         }
         this.did = PeerDID.getDIDFromVerkey(this.verificationKey);
     }
+
+    public PeerDID(byte[] seed) {
+        this.signingKey = new byte[Sign.ED25519_SECRETKEYBYTES];
+        this.verificationKey = new byte[Sign.ED25519_PUBLICKEYBYTES];
+        boolean keyCreationResult = PeerDID.nativeSign.cryptoSignSeedKeypair(this.verificationKey, this.signingKey, seed);
+        this.decryptionKey = new byte[Box.SECRETKEYBYTES];
+        this.encryptionKey = new byte[Box.PUBLICKEYBYTES];
+        PeerDID.nativeSign.convertSecretKeyEd25519ToCurve25519(this.decryptionKey, this.signingKey);
+        PeerDID.nativeSign.convertPublicKeyEd25519ToCurve25519(this.encryptionKey, this.verificationKey);
+        if (!keyCreationResult) {
+            throw new RuntimeException("Keys not created correctly.");
+        }
+        this.did = PeerDID.getDIDFromVerkey(this.verificationKey);
+    }
+
 
     public static byte[] getEncKeyFromVerKey (byte[] verKey) {
         byte[] encKey = new byte[Box.PUBLICKEYBYTES];

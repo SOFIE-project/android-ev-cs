@@ -50,11 +50,7 @@ public class BluetoothLeService extends Service {
 
     private static final int REQUEST_ENABLE_BT = 1;
 
-    private static final int INITIAL_BATTERY_LEVEL = 0;
-  private static final int BATTERY_LEVEL_MAX = 100;
-  private static final String BATTERY_LEVEL_DESCRIPTION = "The current charge level of a " +
-      "battery. 100% represents fully charged while 0% represents fully discharged.";
-
+    private static final String CHARGING_STATION_DESCRIPTION = "Location privacy preserving electric vehicle charging station";
 
     private static final UUID CHARACTERISTIC_USER_DESCRIPTION_UUID = UUID
             .fromString("00002901-0000-1000-8000-00805f9b34fb");
@@ -62,19 +58,19 @@ public class BluetoothLeService extends Service {
             .fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     // UUID for advertising charging service
-  public static UUID CHARGING_SERVICE_UUID = UUID.fromString("D0940001-5FDC-478D-B700-029B574073AB");
-  public static UUID CHARGING_STATE_UUID =  UUID.fromString("D0940002-5FDC-478D-B700-029B574073AB");
+    public static UUID CHARGING_SERVICE_UUID = UUID.fromString("D0940001-5FDC-478D-B700-029B574073AB");
+    public static UUID CHARGING_STATE_UUID = UUID.fromString("D0940002-5FDC-478D-B700-029B574073AB");
 
-  // UART characteristics
-  public static UUID TX_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
-  public static UUID RX_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
+    // UART characteristics
+    public static UUID TX_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
+    public static UUID RX_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
 
 
-  private final int mtuLength = 510;
-  private MessageBuffer mTxBuffer;
-  private MessageBuffer mRxBuffer;
+    private final int mtuLength = 510;
+    private MessageBuffer mTxBuffer;
+    private MessageBuffer mRxBuffer;
 
-  private CommonUtils mCommonUtils;
+    private CommonUtils mCommonUtils;
 
 
     // Event Constants
@@ -90,9 +86,8 @@ public class BluetoothLeService extends Service {
             "io.github.webbluetoothcg.bletestperipheral.CURRENT_STAGE";
 
 
-
     // BLE gatt server
-  private BluetoothGattService mBluetoothGattService;
+    private BluetoothGattService mBluetoothGattService;
     private HashSet<BluetoothDevice> mBluetoothDevices;
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
@@ -134,7 +129,7 @@ public class BluetoothLeService extends Service {
                     statusText = R.string.status_notAdvertising;
                     Log.wtf(TAG, "Unhandled error: " + errorCode);
             }
-            broadcastUpdate(BLE_ERROR, null,null);
+            broadcastUpdate(BLE_ERROR, null, null);
         }
 
         @Override
@@ -147,12 +142,10 @@ public class BluetoothLeService extends Service {
     };
 
 
-
-
     private void broadcastUpdate(final String action, Integer stage, String msg) {
         final Intent intent = new Intent(action);
 
-        if(stage != null) {
+        if (stage != null) {
             intent.putExtra(CURRENT_STAGE, stage);
         }
 
@@ -174,7 +167,7 @@ public class BluetoothLeService extends Service {
 
                     if (mBluetoothManager.getConnectedDevices(BluetoothGattServer.GATT).size() == 1) {
                         mBluetoothDevices.add(device);
-                        broadcastUpdate(EV_CONNECTED, null, device.getName()+","+device.getAddress());
+                        broadcastUpdate(EV_CONNECTED, null, device.getName() + "," + device.getAddress());
                         Log.v(TAG, "Connected to device: " + device.getAddress());
                     } else {
                         mGattServer.cancelConnection(device);
@@ -195,7 +188,6 @@ public class BluetoothLeService extends Service {
                 Log.e(TAG, errorMessage);
             }
         }
-
 
 
         @Override
@@ -301,101 +293,98 @@ public class BluetoothLeService extends Service {
     };
 
 
-
-  // GATT
-  private BluetoothGattService mBatteryService;
-  private BluetoothGattCharacteristic mChargingStateCharacteristic;
-  private BluetoothGattCharacteristic mRXCharacteristics;
-  private BluetoothGattCharacteristic mTXCharacteristics;
-
-
-  public BluetoothLeService() {
-
-    mChargingStateCharacteristic =
-            new BluetoothGattCharacteristic(CHARGING_STATE_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
-                    BluetoothGattCharacteristic.PERMISSION_WRITE);
-    mChargingStateCharacteristic.addDescriptor(
-            getClientCharacteristicConfigurationDescriptor());
-    mChargingStateCharacteristic.addDescriptor(
-            getCharacteristicUserDescriptionDescriptor(BATTERY_LEVEL_DESCRIPTION));
+    // GATT
+    private BluetoothGattService mBatteryService;
+    private BluetoothGattCharacteristic mChargingStateCharacteristic;
+    private BluetoothGattCharacteristic mRXCharacteristics;
+    private BluetoothGattCharacteristic mTXCharacteristics;
 
 
+    public BluetoothLeService() {
 
-    mRXCharacteristics =
-            new BluetoothGattCharacteristic(RX_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                    BluetoothGattCharacteristic.PERMISSION_READ);
-    mRXCharacteristics.addDescriptor(
-            getClientCharacteristicConfigurationDescriptor());
-    mRXCharacteristics.addDescriptor(
-            getCharacteristicUserDescriptionDescriptor(BATTERY_LEVEL_DESCRIPTION));
-
-
-    mTXCharacteristics =
-            new BluetoothGattCharacteristic(TX_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
-                    BluetoothGattCharacteristic.PERMISSION_WRITE);
-    mTXCharacteristics.addDescriptor(
-            getClientCharacteristicConfigurationDescriptor());
-    mTXCharacteristics.addDescriptor(
-            getCharacteristicUserDescriptionDescriptor(BATTERY_LEVEL_DESCRIPTION));
+        mChargingStateCharacteristic =
+                new BluetoothGattCharacteristic(CHARGING_STATE_UUID,
+                        BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                        BluetoothGattCharacteristic.PERMISSION_WRITE);
+        mChargingStateCharacteristic.addDescriptor(
+                getClientCharacteristicConfigurationDescriptor());
+        mChargingStateCharacteristic.addDescriptor(
+                getCharacteristicUserDescriptionDescriptor(CHARGING_STATION_DESCRIPTION));
 
 
-
-    mBatteryService = new BluetoothGattService(CHARGING_SERVICE_UUID,
-        BluetoothGattService.SERVICE_TYPE_PRIMARY);
-    mBatteryService.addCharacteristic(mChargingStateCharacteristic);
-    mBatteryService.addCharacteristic(mRXCharacteristics);
-    mBatteryService.addCharacteristic(mTXCharacteristics);
-  }
-
-
-  // Lifecycle callbacks
+        mRXCharacteristics =
+                new BluetoothGattCharacteristic(RX_UUID,
+                        BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                        BluetoothGattCharacteristic.PERMISSION_READ);
+        mRXCharacteristics.addDescriptor(
+                getClientCharacteristicConfigurationDescriptor());
+        mRXCharacteristics.addDescriptor(
+                getCharacteristicUserDescriptionDescriptor(CHARGING_STATION_DESCRIPTION));
 
 
-  public void notificationSent(BluetoothDevice device, int status) {
+        mTXCharacteristics =
+                new BluetoothGattCharacteristic(TX_UUID,
+                        BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                        BluetoothGattCharacteristic.PERMISSION_WRITE);
+        mTXCharacteristics.addDescriptor(
+                getClientCharacteristicConfigurationDescriptor());
+        mTXCharacteristics.addDescriptor(
+                getCharacteristicUserDescriptionDescriptor(CHARGING_STATION_DESCRIPTION));
+
+
+        mBatteryService = new BluetoothGattService(CHARGING_SERVICE_UUID,
+                BluetoothGattService.SERVICE_TYPE_PRIMARY);
+        mBatteryService.addCharacteristic(mChargingStateCharacteristic);
+        mBatteryService.addCharacteristic(mRXCharacteristics);
+        mBatteryService.addCharacteristic(mTXCharacteristics);
+    }
+
+
+    // Lifecycle callbacks
+
+
+    public void notificationSent(BluetoothDevice device, int status) {
         byte[] nextChunk = mRxBuffer.poll();
 
-        if(nextChunk != null) {
-          mRXCharacteristics.setValue(nextChunk);
-          sendNotificationToDevices(mRXCharacteristics);
+        if (nextChunk != null) {
+            mRXCharacteristics.setValue(nextChunk);
+            sendNotificationToDevices(mRXCharacteristics);
         } else {
-          Log.v(TAG, "Finished sending did: " + System.currentTimeMillis());
+            Log.v(TAG, "Finished sending did: " + System.currentTimeMillis());
         }
-  }
-
-
-  public int writeCharacteristic(BluetoothGattCharacteristic characteristic, int offset, final byte[] value) {
-    try {
-      if (offset != 0) {
-        return BluetoothGatt.GATT_INVALID_OFFSET;
-      }
-
-      characteristic.setValue(value);
-
-        // If Value written on state indicator
-        if (characteristic.getUuid().equals(CHARGING_STATE_UUID)) {
-            int newState = mChargingStateCharacteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-            mCommonUtils.writeLine("Stage: "+ newState);
-            broadcastUpdate(TX_MSG_RECVD, newState, null);
-
-        } else if (characteristic.getUuid().equals(TX_UUID)){
-            // Value is written to TX characteristic
-            mTxBuffer.add(mTXCharacteristics.getValue());
-        }
-
-    } catch (Exception e) {
-      e.printStackTrace();
     }
-    return BluetoothGatt.GATT_SUCCESS;
-  }
 
 
-  public byte[] getBLEMessage() {
-    byte[] bleMessage = mTxBuffer.extract();
-    return bleMessage;
-  }
+    public int writeCharacteristic(BluetoothGattCharacteristic characteristic, int offset, final byte[] value) {
+        try {
+            if (offset != 0) {
+                return BluetoothGatt.GATT_INVALID_OFFSET;
+            }
+
+            characteristic.setValue(value);
+
+            // If Value written on state indicator
+            if (characteristic.getUuid().equals(CHARGING_STATE_UUID)) {
+                int newState = mChargingStateCharacteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                mCommonUtils.writeLine("Stage: " + newState);
+                broadcastUpdate(TX_MSG_RECVD, newState, null);
+
+            } else if (characteristic.getUuid().equals(TX_UUID)) {
+                // Value is written to TX characteristic
+                mTxBuffer.add(mTXCharacteristics.getValue());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return BluetoothGatt.GATT_SUCCESS;
+    }
+
+
+    public byte[] getBLEMessage() {
+        byte[] bleMessage = mTxBuffer.extract();
+        return bleMessage;
+    }
 
 
     public void sendNotificationToDevices(BluetoothGattCharacteristic characteristic) {
@@ -408,66 +397,68 @@ public class BluetoothLeService extends Service {
         }
     }
 
-  public void writeLongLocalCharacteristic(byte[] payload) {
-    int start = 0;
+    public void writeLongLocalCharacteristic(byte[] payload) {
+        int start = 0;
 
-    while (start < payload.length) {
-      int end = Math.min(payload.length, start + mtuLength);
-      byte[] chunk = Arrays.copyOfRange(payload,start,end);
-      mRxBuffer.add(chunk);
-      start += mtuLength;
+        while (start < payload.length) {
+            int end = Math.min(payload.length, start + mtuLength);
+            byte[] chunk = Arrays.copyOfRange(payload, start, end);
+            mRxBuffer.add(chunk);
+            start += mtuLength;
+        }
+
+        mRXCharacteristics.setValue(mRxBuffer.poll());
+        sendNotificationToDevices(mRXCharacteristics);
     }
 
-    mRXCharacteristics.setValue(mRxBuffer.poll());
-    sendNotificationToDevices(mRXCharacteristics);
-  }
+
+    public void initialize() {
+        mTxBuffer = new MessageBuffer(mtuLength);
+        mRxBuffer = new MessageBuffer(mtuLength);
+
+        mCommonUtils = new CommonUtils("MyBLE");
 
 
-  public void initialize() {
-      mTxBuffer = new MessageBuffer(mtuLength);
-      mRxBuffer = new MessageBuffer(mtuLength);
+        mBluetoothDevices = new HashSet<>();
+        mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = mBluetoothManager.getAdapter();
 
-      mCommonUtils = new CommonUtils("MyBLE");
+        mAdvSettings = new AdvertiseSettings.Builder()
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                .setConnectable(true)
+                .build();
+        mAdvData = new AdvertiseData.Builder()
+                .addServiceUuid(getServiceUUID())
+                .build();
 
-
-      mBluetoothDevices = new HashSet<>();
-      mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-      mBluetoothAdapter = mBluetoothManager.getAdapter();
-
-      mAdvSettings = new AdvertiseSettings.Builder()
-              .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-              .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-              .setConnectable(true)
-              .build();
-      mAdvData = new AdvertiseData.Builder()
-              .addServiceUuid(getServiceUUID())
-              .build();
-
-      mAdvScanResponse = new AdvertiseData.Builder()
-              .setIncludeDeviceName(true)
-              .build();
-  }
+        mAdvScanResponse = new AdvertiseData.Builder()
+                .setIncludeDeviceName(true)
+                .build();
+    }
 
     public ParcelUuid getServiceUUID() {
         return new ParcelUuid(CHARGING_SERVICE_UUID);
     }
 
-  public void startGattServer() {
-      mGattServer = mBluetoothManager.openGattServer(this, mGattServerCallback);
+    public void startGattServer() {
+        mGattServer = mBluetoothManager.openGattServer(this, mGattServerCallback);
 
-      if(mGattServer == null) { System.exit(1);}
-      // Add a service for a total of three services (Generic Attribute and Generic Access
-      // are present by default).
-      mGattServer.addService(mBatteryService);
+        if (mGattServer == null) {
+            System.exit(1);
+        }
+        // Add a service for a total of three services (Generic Attribute and Generic Access
+        // are present by default).
+        mGattServer.addService(mBatteryService);
 
-      if (mBluetoothAdapter.isMultipleAdvertisementSupported()) {
-          mAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
-          mAdvertiser.startAdvertising(mAdvSettings, mAdvData, mAdvScanResponse, mAdvCallback);
-      } else {
-          mCommonUtils.writeLine(getString(R.string.status_noLeAdv));
-      }
+        if (mBluetoothAdapter.isMultipleAdvertisementSupported()) {
+            mAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
+            mAdvertiser.startAdvertising(mAdvSettings, mAdvData, mAdvScanResponse, mAdvCallback);
+        } else {
+            mCommonUtils.writeLine(getString(R.string.status_noLeAdv));
+        }
 
-  }
+    }
 
     public class LocalBinder extends Binder {
         BluetoothLeService getService() {

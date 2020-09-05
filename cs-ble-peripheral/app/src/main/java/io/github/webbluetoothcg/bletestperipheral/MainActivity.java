@@ -25,7 +25,6 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.Parcelable;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -51,17 +50,96 @@ public class MainActivity extends Activity {
     private static final String TAG = MainActivity.class.getCanonicalName();
 
     BluetoothLeService mBluetoothLeService;
-    IndyService mIndyService;
+    // Code to manage Service lifecycle.
+    private final ServiceConnection mBLEServiceConnection = new ServiceConnection() {
 
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
+            mBluetoothLeService.initialize();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBluetoothLeService = null;
+        }
+    };
+    IndyService mIndyService;
     // UI elements
     private TextView mStatusText, messages;
     private TextView mEvName, mEvMac, mEvDid, mCsDid, mCsoProof, mCsSignature;
     private ImageView chargeProgress;
     private Switch mCredSwitch;
+    private final ServiceConnection mIndyServiceConnection = new ServiceConnection() {
 
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mIndyService = ((IndyService.LocalBinder) service).getService();
+            mIndyService.initialize();
+            mCredSwitch.setChecked(mIndyService.getCredType());
+            mCredSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                    mIndyService.saveCredType(b);
+                }
+            });
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mIndyService = null;
+        }
+    };
     private PieProgressDrawable mPieProgress;
     private CommonUtils mCommonUtils;
 
+    /////////////////////////////////
+    ////// Lifecycle Callbacks //////
+    /////////////////////////////////
+    // Handles various events fired by the BLE Service and Indy Service.
+    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+
+            if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
+                writeLine("Indy Initialized");
+
+                mBluetoothLeService.startGattServer();
+            } else if (BluetoothLeService.BROADCASTING.equals(action)) {
+                writeLine("Broadcasting!");
+                mStatusText.setText("Broadcasting");
+            } else if (BluetoothLeService.EV_CONNECTED.equals(action)) {
+                String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
+                //mEvName.setText(msg.split(",")[0]);
+                mEvMac.setText(msg.split(",")[1]);
+                mStatusText.setText("Connected");
+                writeLine("Connected");
+                invalidateOptionsMenu();  // what is this??
+
+            } else if (BluetoothLeService.TX_MSG_RECVD.equals(action)) {
+                int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, -1);
+                if (stage >= 0) {
+                    handleEvent(stage);
+                } else {
+                    writeLine("Unexpected Message Received");
+                }
+            } else if (BluetoothLeService.BLE_ERROR.equals(action)) {
+                mStatusText.setText("Bluetooth Error");
+            }
+        }
+    };
+
+    private static IntentFilter makeGattUpdateIntentFilter() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(IndyService.ACTION_INDY_INITIALIZED);
+
+        intentFilter.addAction(BluetoothLeService.EV_CONNECTED);
+        intentFilter.addAction(BluetoothLeService.TX_MSG_RECVD);
+        intentFilter.addAction(BluetoothLeService.BROADCASTING);
+        intentFilter.addAction(BluetoothLeService.BLE_ERROR);
+        return intentFilter;
+    }
 
     // Write some text to the messages text view.
     // Care is taken to do this on the main UI thread so writeLine can be called
@@ -126,10 +204,10 @@ public class MainActivity extends Activity {
 
                 // write real DID
                 mCommonUtils.startTimer();
-                byte[] tempDID2 = mIndyService.createExchangeResponse();
+                byte[] exchangeResponse = mIndyService.createExchangeResponse();
                 mCommonUtils.stopTimer();
 
-                mBluetoothLeService.writeLongLocalCharacteristic(tempDID2);
+                mBluetoothLeService.writeLongLocalCharacteristic(exchangeResponse);
                 mCsDid.setText(mIndyService.getCsDid());
                 writeLine("Sending Exchange Response");
                 break;
@@ -162,10 +240,6 @@ public class MainActivity extends Activity {
                 break;
         }
     }
-
-    /////////////////////////////////
-    ////// Lifecycle Callbacks //////
-    /////////////////////////////////
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -203,102 +277,10 @@ public class MainActivity extends Activity {
         mCommonUtils = new CommonUtils("myMain");
     }
 
-
-    private static IntentFilter makeGattUpdateIntentFilter() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(IndyService.ACTION_INDY_INITIALIZED);
-
-        intentFilter.addAction(BluetoothLeService.EV_CONNECTED);
-        intentFilter.addAction(BluetoothLeService.TX_MSG_RECVD);
-        intentFilter.addAction(BluetoothLeService.BROADCASTING);
-        intentFilter.addAction(BluetoothLeService.BLE_ERROR);
-        return intentFilter;
-    }
-
-    // Handles various events fired by the BLE Service and Indy Service.
-    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-
-            if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
-                writeLine("Indy Initialized");
-
-//                String[] tmList = intent.getStringArrayExtra("times");
-//                writeLine("List starts");
-//            for (String tm : tmList) {
-//                writeLine(tm);
-//            }
-
-                mBluetoothLeService.startGattServer();
-            } else if (BluetoothLeService.BROADCASTING.equals(action)) {
-                writeLine("Broadcasting!");
-                mStatusText.setText("Broadcasting");
-            } else if (BluetoothLeService.EV_CONNECTED.equals(action)) {
-                String msg = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
-                //mEvName.setText(msg.split(",")[0]);
-                mEvMac.setText(msg.split(",")[1]);
-                mStatusText.setText("Connected");
-                writeLine("Connected");
-                invalidateOptionsMenu();  // what is this??
-
-            } else if (BluetoothLeService.TX_MSG_RECVD.equals(action)) {
-                int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, -1);
-                if (stage >= 0) {
-                    handleEvent(stage);
-                } else {
-                    writeLine("Unexpected Message Received");
-                }
-            } else if (BluetoothLeService.BLE_ERROR.equals(action)) {
-                mStatusText.setText("Bluetooth Error");
-            }
-        }
-    };
-
-
-
     public void updatePieProgress(int progress) {
         mPieProgress.setLevel(progress);
         chargeProgress.invalidate();
     }
-
-
-    // Code to manage Service lifecycle.
-    private final ServiceConnection mBLEServiceConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName componentName, IBinder service) {
-            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
-            mBluetoothLeService.initialize();
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName componentName) {
-            mBluetoothLeService = null;
-        }
-    };
-
-    private final ServiceConnection mIndyServiceConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName componentName, IBinder service) {
-            mIndyService = ((IndyService.LocalBinder) service).getService();
-            mIndyService.initialize();
-            mCredSwitch.setChecked(mIndyService.getCredType());
-            mCredSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
-                    mIndyService.saveCredType(b);
-                }
-            });
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName componentName) {
-            mIndyService = null;
-        }
-    };
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

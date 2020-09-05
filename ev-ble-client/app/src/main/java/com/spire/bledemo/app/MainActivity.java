@@ -47,10 +47,6 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-    //    AppCompatDelegate.setDefaultNightMode(
-    //            AppCompatDelegate.MODE_NIGHT_YES);
-
-
         // Grab references to UI elements.
         mStatusText = findViewById(R.id.status_text);
         messages = (TextView) findViewById(R.id.messages);
@@ -97,7 +93,7 @@ public class MainActivity extends Activity {
         mCsSignature.setText("-");
 
         // disconnect and start again.
-        i=0;
+        i = 0;
         updatePieProgress(0);
         nextStage(0);
     }
@@ -160,8 +156,8 @@ public class MainActivity extends Activity {
             startCharging();
             return true;
         } else if (id == R.id.action_time_measurements) {
-            Intent intent = new Intent(this, TimeMeasurementsActivity.class );
-            intent.putExtra("timeList", mBluetoothLeService.getTimeList() );
+            Intent intent = new Intent(this, TimeMeasurementsActivity.class);
+            intent.putExtra("timeList", mBluetoothLeService.getTimeList());
             startActivity(intent);
             return true;
         }
@@ -173,10 +169,9 @@ public class MainActivity extends Activity {
 // EV - CS communication message building functions
 
     public void sendExchangeRequest() {
-        timer.writeLine("reset");
-        timer.stopTimer();
+        timer.writeLine("reset ignore " + timer.getLapTime());
         byte[] message = mIndyService.createExchangeRequest();
-        timer.writeLine("req " + message.length);
+        timer.writeLine("req " + message.length + timer.getLapTime());
         mEvDid.setText(mIndyService.getEvDid());
         writeLine("Sending Exchange Request");
         mBluetoothLeService.write(message);
@@ -192,11 +187,9 @@ public class MainActivity extends Activity {
 
     //Sends the proof  from file via BLE
     private void sendExchangeComplete() {
-        timer.writeLine("reset");
-        timer.stopTimer();
+        timer.writeLine("reset ignore " + timer.getLapTime());
         byte[] msg = mIndyService.createExchangeComplete();
-        timer.writeLine("comp " + msg.length);
-        timer.stopTimer();
+        timer.writeLine("comp " + msg.length + timer.getLapTime());
         writeLine("Sending Exchange Complete");
         mBluetoothLeService.write(msg);
     }
@@ -265,7 +258,7 @@ public class MainActivity extends Activity {
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
 
-            if(IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
+            if (IndyService.ACTION_INDY_INITIALIZED.equals(action)) {
                 writeLine("Indy Initialized");
                 writeLine("Scanning for devices...");
                 timer.startTimer();
@@ -286,45 +279,34 @@ public class MainActivity extends Activity {
                 mCsName.setText(deviceName);
                 mCsMac.setText(deviceAddress);
 
-//                mCsDetails.setText(" Status: Connected \n CS Name: " + deviceName + "\n MAC: " + deviceAddress + " \n");
-//                ((RelativeLayout) mCsDetails.getParent()).setBackgroundColor(getResources().getColor(android.R.color.holo_green_light));
-//nextStage(0);
                 startCharging();
 
             } else if (BluetoothLeService.RX_MSG_RECVD.equals(action)) {
                 byte[] msg = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
                 int stage = intent.getIntExtra(BluetoothLeService.CURRENT_STAGE, 0);
                 if (stage == 0) {
-                    timer.writeLine("reset");
-                    timer.stopTimer();
+                    timer.writeLine("reset ignore " + timer.getLapTime());
                     mIndyService.parseExchangeInvitation(msg);
-                    timer.writeLine("inv " + msg.length);
-                    timer.stopTimer();
+                    timer.writeLine("inv " + msg.length + timer.getLapTime());
 
                     nextStage(1);
                     sendExchangeRequest();
-                    timer.stopTimer();
-
                     nextStage(2);
-                } else if (stage == 2) {
-                    timer.writeLine("reset");
-                    timer.stopTimer();
-                    mIndyService.parseExchangeResponse(msg);
-                    timer.writeLine("res " + msg.length);
-                    timer.stopTimer();
 
+                } else if (stage == 2) {
+                    timer.writeLine("reset ignore " + timer.getLapTime());
+                    mIndyService.parseExchangeResponse(msg);
+                    timer.writeLine("res " + msg.length + timer.getLapTime());
 
                     mCsDid.setText(mIndyService.getCsDid());
                     mCsoProof.setText("Verified");
-                    mCsSignature.setText(mIndyService.getCsSignature());
+                    mCsSignature.setText(mIndyService.getCsSignatureValue());
+
                     nextStage(3);
-
-
                     sendExchangeComplete();
-
-
                     nextStage(4);
-                } else if(stage == 4 || stage == 5) {
+
+                } else if (stage == 4 || stage == 5) {
                     startEVCharging();
                 } else {
                     writeLine("Unexpected Message Received");
@@ -336,7 +318,7 @@ public class MainActivity extends Activity {
     };
 
     private void startEVCharging() {
-        if (i<10) {
+        if (i < 10) {
             byte[] mircoCharge = mIndyService.createMicroChargeRequest();
             mBluetoothLeService.write(mircoCharge);
             nextStage(5);

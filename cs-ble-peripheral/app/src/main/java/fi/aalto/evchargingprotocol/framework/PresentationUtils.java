@@ -50,12 +50,43 @@ public class PresentationUtils {
         }
     }
 
+    public static JSONObject generateCSPresentation(PeerDID csDID, String evDID, JSONObject csInfoCredential) {
+        try {
+            JSONObject result = new JSONObject()
+                    .put("@context", new JSONArray(new String[] {"https://www.w3.org/2018/credentials/v1", "https://www.w3.org/2018/credentials/examples/v1"}))
+                    .put("id", "urn:uuid:18E15106-E6DC-4EB5-8DEB-BFBFAC1C7A7A")
+                    .put("type", new JSONArray(new String[] {"VerifiablePresentation"}))
+                    .put("ev-did", evDID);
+
+            RingSignatureUtils ringSignature = new RingSignatureUtils(csDID, csInfoCredential.getJSONObject("credentialSubject").getJSONArray("id"));
+            SignatureUtils.addJcsEd25519Signature2020LinkedProof(result, csInfoCredential.getString("id"), "1597155763", ringSignature::sign);
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
     public static boolean verifyCSPresentation(JSONObject presentation) {
         try {
             String csDID = presentation.getJSONObject("proof").getString("verificationMethod");
             return SignatureUtils.verifyJCSEd25519Signature2020LinkedDocument(presentation, (verificationDID, message, signature) ->
                     PeerDID.verifyFrom(csDID, message, signature)
             );
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
+    public static boolean verifyCSPresentation(JSONObject presentation, JSONObject csInfoCredential) {
+        try {
+            String csCredentialId = presentation.getJSONObject("proof").getString("verificationMethod");
+            if(!csInfoCredential.getString("id").equals(csCredentialId)) {
+                return false;
+            }
+
+            RingSignatureUtils ringSignature = new RingSignatureUtils(null, csInfoCredential.getJSONObject("credentialSubject").getJSONArray("id"));
+
+            return SignatureUtils.verifyJCSEd25519Signature2020LinkedDocument(presentation, ringSignature::verify);
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }

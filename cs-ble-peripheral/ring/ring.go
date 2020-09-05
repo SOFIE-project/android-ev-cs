@@ -2,10 +2,13 @@ package ring
 
 import (
 	"strings"
-	//	"time"
+	
+	"crypto/cipher"
+	"fmt"
+	"go.dedis.ch/kyber/sign/eddsa"
+	"time"
 
-	//	"fmt"
-
+	//"encoding/hex"
 	"go.dedis.ch/kyber"
 	"go.dedis.ch/kyber/group/edwards25519"
 
@@ -16,7 +19,7 @@ import (
 //Sign : Ring Signature Function
 func Sign(M, skSeed []byte, pbKeyList string) []byte {
 
-	//	start := time.Now()
+
 
 	pbKeySet := strings.Split(pbKeyList, "|")
 	n := len(pbKeySet)
@@ -51,16 +54,22 @@ func Sign(M, skSeed []byte, pbKeyList string) []byte {
 	// Generate the signature
 	//	fmt.Printf("Private key of signer: %s\n\n", x)
 
+	//start := time.Now()
 	sig := anon.Sign(suite, M, anon.Set(X), nil, mine, x)
 
-	//fmt.Print("Signature:\n" + hex.Dump(sig))
+//	fmt.Print("Signature:\n" + hex.Dump(sig))
 
 	// Verify the signature against the correct message
 	//	elapsed := time.Since(start)
 	//	fmt.Sprint("Signing time")
 	//	fmt.Sprint(elapsed)
 
-	return sig
+	//start = time.Now()
+	//Verify(M, sig, pbKeyList)
+	//anon.Verify(suite, M, anon.Set(X), nil, sig)
+	//elapsed2 := time.Since(start)	
+
+	return sig //"gen: " + elapsed.String() + "verification : " + elapsed2.String()
 }
 
 func findIndexOf(element kyber.Point, X []kyber.Point) int {
@@ -106,4 +115,61 @@ func Verify(M, sig []byte, pbKeyList string) bool {
 	//	fmt.Sprint(elapsed)
 
 	return true
+}
+
+func SingleSign(message string) string {
+
+	msg := []byte(message)
+
+	seed := []byte("0000000000000000000000000CS-0000")
+	stream := ConstantStream(seed)
+	suite := eddsa.NewEdDSA(stream)
+
+	sig, _ := suite.Sign(msg)
+
+	fmt.Print("Signature:\n")
+	fmt.Print(len(sig))
+
+	
+start := time.Now()
+	er := eddsa.Verify(suite.Public , msg, sig)
+	if er != nil {
+		panic("wrong sig")
+	}
+elapsed := time.Since(start)
+
+	// Verify the signature against the correct message
+	
+	fmt.Print("Signing time")
+
+	return elapsed.String()
+
+}
+
+type constantStream struct {
+	seed []byte
+}
+
+// ConstantStream is a cipher.Stream which always returns
+// the same value.
+func ConstantStream(buff []byte) cipher.Stream {
+	return &constantStream{buff}
+}
+
+// XORKexStream implements the cipher.Stream interface
+func (cs *constantStream) XORKeyStream(dst, src []byte) {
+	copy(dst, cs.seed)
+}
+
+func GenerateKeys(skSeed []byte) string {
+start := time.Now()
+	suite := edwards25519.NewBlakeSHA256Ed25519()
+
+	x, _, _ := suite.NewKeyAndSeedWithInput(skSeed) // create a private key x
+
+	pk, _ := suite.Point().Mul(x, nil).MarshalBinary()
+//	fmt.Printf("Private key of signer: %s\n\n", base58.Encode(x))
+	fmt.Printf("Public key of signer: %s\n\n", base58.Encode(pk))
+	elapsed := time.Since(start)
+	return base58.Encode(pk) + "time: " + elapsed.String()
 }
