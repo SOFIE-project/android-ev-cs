@@ -1,5 +1,7 @@
 package fi.aalto.evchargingprotocol.framework;
 
+import android.util.Log;
+
 import org.bitcoinj.core.Base58;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -11,15 +13,15 @@ import ring.Ring;
 
 public class RingSignatureUtils {
 
-    private PeerDID signerDID;
-    private JSONArray ringDidList;
+    private byte[] signerSEED;
+    public String ringDidList;
 
-    public RingSignatureUtils(PeerDID signerDID, JSONArray ringDidList) {
-        this.signerDID = signerDID;
-        this.ringDidList = ringDidList;
+    public RingSignatureUtils(byte[] signerSEED, JSONArray ringDidList) {
+        this.signerSEED = signerSEED;
+        this.ringDidList = getPbKeyListString(ringDidList);
     }
 
-    public String getPbKeyListString() {
+    public String getPbKeyListString(JSONArray ringDidList) {
         ArrayList<String> pbKeyList = new ArrayList<>();
         try {
             for (int i = 0; i < ringDidList.length(); i++) {
@@ -35,7 +37,9 @@ public class RingSignatureUtils {
     public byte[] sign(byte[] data) {
         byte[] signature = null;
         try {
-            signature = Ring.sign(data, PeerDID.PeerEntity.CS.getSeed(), getPbKeyListString());
+            signature = Ring.sign(data, this.signerSEED, this.ringDidList);
+//            Log.i("Measure", signaturePlainText);
+//            signature = signaturePlainText.getBytes();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -45,7 +49,7 @@ public class RingSignatureUtils {
 
     public boolean verify(String unused, byte[] data, byte[] signature) {
         try {
-            return Ring.verify(data, signature, getPbKeyListString());
+            return Ring.verify(data, signature, this.ringDidList);
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }

@@ -47,29 +47,22 @@ func Sign(M, skSeed []byte, pbKeyList string) []byte {
 		panic("signer not in set")
 	}
 
-	//	X[mine] = suite.Point().Mul(x, nil)             // corresponding public key X
-
-	//	fmt.Printf("Public keys: %s\n\n", X)
-
-	// Generate the signature
-	//	fmt.Printf("Private key of signer: %s\n\n", x)
-
 	//start := time.Now()
 	sig := anon.Sign(suite, M, anon.Set(X), nil, mine, x)
 
-//	fmt.Print("Signature:\n" + hex.Dump(sig))
-
+	//	fmt.Print("Signature:\n" + hex.Dump(sig))
 	// Verify the signature against the correct message
-	//	elapsed := time.Since(start)
-	//	fmt.Sprint("Signing time")
-	//	fmt.Sprint(elapsed)
+	//elapsed := time.Since(start)
+	//fmt.Sprint("Signing time")
+	//fmt.Sprint(elapsed)
 
 	//start = time.Now()
-	//Verify(M, sig, pbKeyList)
 	//anon.Verify(suite, M, anon.Set(X), nil, sig)
-	//elapsed2 := time.Since(start)	
+	//elapsed2 := time.Since(start)
+	//fmt.Sprint("Signing time")
+	//fmt.Sprint(elapsed2)	
 
-	return sig //"gen: " + elapsed.String() + "verification : " + elapsed2.String()
+	return sig // fmt.Sprintf("%s%d", "gen: " + elapsed.String() + " verification: " + elapsed2.String() + " size: ", len(sig)) 
 }
 
 func findIndexOf(element kyber.Point, X []kyber.Point) int {

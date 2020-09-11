@@ -7,6 +7,7 @@ import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.RequiresApi;
@@ -89,7 +90,10 @@ public class IndyService extends Service {
         try {
             // 10. Exchange request (step 6)
             JSONObject exchangeRequest = ExchangeUtils.createExchangeRequest(exchangeInvitation.getJSONObject("invitation"), evDID);
+            mCommonUtils.startTimer();
             encryptedExchangeRequestSent = ExchangeUtils.encryptFor(PeerDID.getPublicKeyFromMultiBaseKey(csInvKey), exchangeRequest.toString().getBytes());
+            mCommonUtils.writeLine("request encryption time");
+            mCommonUtils.stopTimer();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -102,7 +106,11 @@ public class IndyService extends Service {
 
         try {
 
+            mCommonUtils.stopTimer();
             byte[] decryptedExchangeResponseReceived = evDID.decrypt(encryptedExchangeResponseReceived);
+            mCommonUtils.writeLine("response decryption time");
+            mCommonUtils.stopTimer();
+
             exchangeResponse = new JSONObject(new String(decryptedExchangeResponseReceived));
 
             csPresentation = exchangeResponse.getJSONObject("presentation");
@@ -110,8 +118,6 @@ public class IndyService extends Service {
             String encodedCSCredential = exchangeResponse.getJSONArray("verifiableCredential").getString(0);
             csCredential = new JSONObject(new String(Base64.getDecoder().decode(encodedCSCredential)));
 
-            mCommonUtils.writeLine("Signature Verification");
-            mCommonUtils.stopTimer();
             boolean isCSPresentationValid;
 
             JSONArray csDidList = csCredential.getJSONObject("credentialSubject").getJSONArray("id");
@@ -128,6 +134,9 @@ public class IndyService extends Service {
                 System.exit(255);
             }
 
+            mCommonUtils.writeLine("response verify time (cs presentation only)");
+            mCommonUtils.stopTimer();
+
             start = System.currentTimeMillis();
             boolean isCSCredentialValid = CredentialUtils.verifyCSInfoCredential(csCredential);
             end = System.currentTimeMillis();
@@ -137,8 +146,6 @@ public class IndyService extends Service {
                 System.exit(255);
             }
 
-            mCommonUtils.writeLine("resp sign verify");
-            mCommonUtils.stopTimer();
 
             mCommonUtils.writeLine("Signature Verification Ends");
 
@@ -260,7 +267,11 @@ public class IndyService extends Service {
             csoDID = DIDUtils.getCSODID();
 
             evDID = DIDUtils.getEVDID();
+
+            //long start = SystemClock.elapsedRealtime();
             evChargingCredential = CredentialUtils.getEVChargingCredential(evDID, erDID);
+            //mCommonUtils.writeLine("time: " + (SystemClock.elapsedRealtime() - start) + " credential size: " + evChargingCredential.toString().length());
+
 
         } catch (Exception e) {
             e.printStackTrace();

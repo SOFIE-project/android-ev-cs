@@ -1,11 +1,17 @@
 package fi.aalto.evchargingprotocol.framework;
 
+import android.util.Log;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.Base64;
 
+import io.github.webbluetoothcg.bletestperipheral.MainActivity;
+
 public class PresentationUtils {
+
+    public static final String TAG = PresentationUtils.class.getName();
 
     private PresentationUtils() {}
 
@@ -58,7 +64,7 @@ public class PresentationUtils {
                     .put("type", new JSONArray(new String[] {"VerifiablePresentation"}))
                     .put("ev-did", evDID);
 
-            RingSignatureUtils ringSignature = new RingSignatureUtils(csDID, csInfoCredential.getJSONObject("credentialSubject").getJSONArray("id"));
+            RingSignatureUtils ringSignature = new RingSignatureUtils(PeerDID.PeerEntity.CS.getSeed(), csInfoCredential.getJSONObject("credentialSubject").getJSONArray("id"));
             SignatureUtils.addJcsEd25519Signature2020LinkedProof(result, csInfoCredential.getString("id"), "1597155763", ringSignature::sign);
             return result;
         } catch (Exception e) {

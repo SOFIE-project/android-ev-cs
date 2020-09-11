@@ -1,5 +1,8 @@
 package fi.aalto.evchargingprotocol.framework;
 
+import android.os.SystemClock;
+import android.util.Log;
+
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.crypto.Crypto;
 import org.hyperledger.indy.sdk.did.Did;
@@ -55,9 +58,15 @@ public class IndyDID implements DID {
                 Wallet.createWallet(entity.walletConfig.toString(), IndyDID.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
             }
             this.wallet = Wallet.openWallet(entity.walletConfig.toString(), IndyDID.DEFAULT_WALLETS_CREDENTIALS.toString()).get();
+
+            //long start = SystemClock.elapsedRealtimeNanos();
+
             DidResults.CreateAndStoreMyDidResult creationResult = Did.createAndStoreMyDid(this.wallet, new DidJSONParameters.CreateAndStoreMyDidJSONParameter(null, entity.seed, null, null).toString()).get();
             this.did = String.format("did:sov:%s", creationResult.getDid());
             this.verkey = creationResult.getVerkey();
+
+            //Log.i("DID", "time: " + (SystemClock.elapsedRealtimeNanos() - start) + " indy DID size: " + this.did.getBytes().length);
+
         } catch (InterruptedException | ExecutionException | IndyException e) {
             String message = e.getMessage();
             if (e instanceof IndyException) {
