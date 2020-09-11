@@ -325,11 +325,6 @@ public class MainActivity extends Activity {
             updatePieProgress(mPieProgress.getLevel() + 10);
             i++;
             writeLine("Sent Hashstep " + i);
-        } else {
-            timer.writeLine("Time for protocol");
-            timer.stopTimer();
-//            timer.writeLine(mBluetoothLeService.getTimeList().toString());
-            timer.writeLine("ProtocolTimeEnd");
         }
     }
 

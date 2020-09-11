@@ -1,5 +1,8 @@
 package fi.aalto.evchargingprotocol.framework;
 
+import android.os.SystemClock;
+import android.util.Log;
+
 import org.bitcoinj.core.Base58;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -45,7 +48,11 @@ public class RingSignatureUtils {
 
     public boolean verify(String unused, byte[] data, byte[] signature) {
         try {
-            return Ring.verify(data, signature, getPbKeyListString());
+            long start = SystemClock.elapsedRealtime();
+            boolean result =  Ring.verify(data, signature, getPbKeyListString());
+            long end = SystemClock.elapsedRealtime();
+            Log.i("ring signature time", String.format("CS presentation validation time (RS verify): %d ms", end - start));
+            return result;
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }
