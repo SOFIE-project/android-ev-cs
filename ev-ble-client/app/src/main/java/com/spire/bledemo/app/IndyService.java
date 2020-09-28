@@ -33,6 +33,7 @@ import fi.aalto.evchargingprotocol.framework.IndyDID;
 import fi.aalto.evchargingprotocol.framework.Initialiser;
 import fi.aalto.evchargingprotocol.framework.PeerDID;
 import fi.aalto.evchargingprotocol.framework.PresentationUtils;
+import fi.aalto.evchargingprotocol.framework.Utils;
 
 
 public class IndyService extends Service {
@@ -70,7 +71,7 @@ public class IndyService extends Service {
     public void parseExchangeInvitation(byte[] exchangeInvitationBytes) {
 
         try {
-            exchangeInvitation = new JSONObject(new String(exchangeInvitationBytes));
+            exchangeInvitation = Utils.decompressJSON(exchangeInvitationBytes);
             csInvKey = exchangeInvitation.getJSONObject("invitation").getJSONArray("recipientKeys").getString(0);
         } catch (Exception e) {
             if (e instanceof IndyException) {
@@ -91,7 +92,7 @@ public class IndyService extends Service {
             // 10. Exchange request (step 6)
             JSONObject exchangeRequest = ExchangeUtils.createExchangeRequest(exchangeInvitation.getJSONObject("invitation"), evDID);
             mCommonUtils.startTimer();
-            encryptedExchangeRequestSent = ExchangeUtils.encryptFor(PeerDID.getPublicKeyFromMultiBaseKey(csInvKey), exchangeRequest.toString().getBytes());
+            encryptedExchangeRequestSent = ExchangeUtils.encryptFor(PeerDID.getPublicKeyFromMultiBaseKey(csInvKey), Utils.compressJSON(exchangeRequest));
             mCommonUtils.writeLine("request encryption time");
             mCommonUtils.stopTimer();
         } catch (Exception e) {
@@ -111,7 +112,7 @@ public class IndyService extends Service {
             mCommonUtils.writeLine("response decryption time");
             mCommonUtils.stopTimer();
 
-            exchangeResponse = new JSONObject(new String(decryptedExchangeResponseReceived));
+            exchangeResponse = Utils.decompressJSON(decryptedExchangeResponseReceived);
 
             csPresentation = exchangeResponse.getJSONObject("presentation");
             csDid = exchangeResponse.getJSONObject("response").getJSONObject("connection").getString("did");
@@ -140,6 +141,8 @@ public class IndyService extends Service {
             start = System.currentTimeMillis();
             boolean isCSCredentialValid = CredentialUtils.verifyCSInfoCredential(csCredential);
             end = System.currentTimeMillis();
+            //mCommonUtils.writeLine("cs cred verification: " + csCredential.toString().length());
+            //mCommonUtils.stopTimer();
             log(Log.INFO, String.format("CS credential validation time: %d ms", end - start));
             log(Log.INFO, String.format("Is CSO-issued credential valid? %b", isCSCredentialValid));
             if (!isCSCredentialValid) {
@@ -198,7 +201,7 @@ public class IndyService extends Service {
             // Step 11: EV -> CS = Exchange complete + EV presentation + payment commitment
             exchangeComplete = ExchangeUtils.createExchangeComplete(exchangeResponse.getJSONObject("response"), evChargingCredential, evPresentation);
             start = System.currentTimeMillis();
-            encryptedExchangeCompleteSent = ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(csDid)), exchangeComplete.toString().getBytes());
+            encryptedExchangeCompleteSent = ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(csDid)), Utils.compressJSON(exchangeComplete));
             end = System.currentTimeMillis();
             log(Log.INFO, String.format("Exchange complete encryption time from EV: %d ms", end - start));
             log(Log.INFO, String.format("Exchange complete sent: %s", exchangeComplete));

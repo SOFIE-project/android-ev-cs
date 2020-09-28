@@ -20,6 +20,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -28,6 +29,7 @@ import java.util.Date;
 import java.util.TimeZone;
 
 import fi.aalto.evchargingprotocol.framework.RingSignatureUtils;
+import fi.aalto.evchargingprotocol.framework.Utils;
 import ring.Ring;
 
 import com.goterl.lazycode.lazysodium.utils.KeyPair;
@@ -78,9 +80,16 @@ public class IndyService extends Service {
 
     public byte[] createExchangeInvitation() {
 
+        byte[] exchangeInvitationBytes = {};
         // Step 3: CS -> EV = Exchange Invitation
         JSONObject exchangeInvitation = ExchangeUtils.createExchangeInvitation(csInvitationKeypair.getPublicKey().getAsBytes(), "ItalEnergy");
-        return exchangeInvitation.toString().getBytes();
+        try {
+            exchangeInvitationBytes = Utils.compressJSON(exchangeInvitation);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return exchangeInvitationBytes;
     }
 
 
@@ -93,7 +102,7 @@ public class IndyService extends Service {
             mCommonUtils.writeLine("request decryption time");
             mCommonUtils.stopTimer();
 
-            exchangeRequest = new JSONObject(new String(decryptedExchangeRequestReceived));
+            exchangeRequest = Utils.decompressJSON(decryptedExchangeRequestReceived);
             Log.w(this.getClass().toString(), String.format("Exchange request decrypted: %s", exchangeRequest));
 
             evDid = exchangeRequest.getJSONObject("request").getJSONObject("connection").getString("did");
@@ -128,7 +137,7 @@ public class IndyService extends Service {
             exchangeResponse = ExchangeUtils.createExchangeResponse(exchangeRequest.getJSONObject("request"), csInfoCredential, csPresentation, csDID);
 
             mCommonUtils.stopTimer();
-            exchangeResponseEncrypted = ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(evDid)), exchangeResponse.toString().getBytes());
+            exchangeResponseEncrypted = ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(evDid)), Utils.compressJSON(exchangeResponse));
             mCommonUtils.writeLine("response encryption time");
             mCommonUtils.stopTimer();
 
@@ -151,7 +160,7 @@ public class IndyService extends Service {
             byte[] decryptedExchangeCompleteReceived = csDID.decrypt(encryptedExchangeCompleteReceived);
             end = System.currentTimeMillis();
             log(Log.INFO, String.format("Exchange complete decryption time from CS: %d ms", end - start));
-            exchangeComplete = new JSONObject(new String(decryptedExchangeCompleteReceived));
+            exchangeComplete = Utils.decompressJSON(decryptedExchangeCompleteReceived);
             log(Log.INFO, String.format("Exchange complete received: %s", exchangeComplete));
 
             start = System.currentTimeMillis();

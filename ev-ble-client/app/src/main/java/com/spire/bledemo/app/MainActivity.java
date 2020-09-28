@@ -9,6 +9,7 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -39,6 +40,7 @@ public class MainActivity extends Activity {
     private BluetoothLeService mBluetoothLeService;
     private int i = 0;
     private CommonUtils timer;
+    private long start;
 
 
     // OnCreate, called once to initialize the activity.
@@ -84,6 +86,7 @@ public class MainActivity extends Activity {
 
     // Start EV charging manually
     public void startCharging() {
+        start = SystemClock.elapsedRealtime();
         timer.writeLine("Time from Ble init to protocol start");
         timer.stopTimer();
 
@@ -318,6 +321,9 @@ public class MainActivity extends Activity {
     };
 
     private void startEVCharging() {
+        if(i==0) {
+            timer.writeLine("Absolute protocol time: " + (SystemClock.elapsedRealtime() - start));
+        }
         if (i < 10) {
             byte[] mircoCharge = mIndyService.createMicroChargeRequest();
             mBluetoothLeService.write(mircoCharge);
@@ -325,11 +331,6 @@ public class MainActivity extends Activity {
             updatePieProgress(mPieProgress.getLevel() + 10);
             i++;
             writeLine("Sent Hashstep " + i);
-        } else {
-            timer.writeLine("Time for protocol");
-            timer.stopTimer();
-//            timer.writeLine(mBluetoothLeService.getTimeList().toString());
-            timer.writeLine("ProtocolTimeEnd");
         }
     }
 
