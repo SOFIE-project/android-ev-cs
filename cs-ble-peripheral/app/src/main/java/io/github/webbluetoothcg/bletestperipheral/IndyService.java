@@ -82,10 +82,10 @@ public class IndyService extends Service {
 
         byte[] exchangeInvitationBytes = {};
         // Step 3: CS -> EV = Exchange Invitation
-        JSONObject exchangeInvitation = ExchangeUtils.createExchangeInvitation(csInvitationKeypair.getPublicKey().getAsBytes(), "ItalEnergy");
         try {
+            JSONObject exchangeInvitation = ExchangeUtils.createExchangeInvitation(csInvitationKeypair.getPublicKey().getAsBytes(), "ItalEnergy");
             exchangeInvitationBytes = Utils.compressJSON(exchangeInvitation);
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
