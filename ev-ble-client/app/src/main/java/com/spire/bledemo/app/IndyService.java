@@ -6,19 +6,14 @@ import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.hyperledger.indy.sdk.IndyException;
-import org.hyperledger.indy.sdk.did.Did;
-import org.hyperledger.indy.sdk.did.DidResults;
-import org.hyperledger.indy.sdk.pool.Pool;
-import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -29,75 +24,44 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.TimeZone;
 
-import fi.aalto.indy_utils.ConnectionUtils;
-import fi.aalto.indy_utils.CredentialUtils;
-import fi.aalto.indy_utils.CryptoUtils;
-import fi.aalto.indy_utils.DIDUtils;
-import fi.aalto.indy_utils.HashChain;
-import fi.aalto.indy_utils.IndyUtils;
-import fi.aalto.indy_utils.PoolUtils;
-import fi.aalto.indy_utils.ProofUtils;
-import fi.aalto.indy_utils.WalletUtils;
-
-import ring.Ring;
-
-import static java.util.Base64.getDecoder;
-
-//import android.support.annotation.RequiresApi;
+import fi.aalto.evchargingprotocol.framework.CommitmentUtils;
+import fi.aalto.evchargingprotocol.framework.CredentialUtils;
+import fi.aalto.evchargingprotocol.framework.DIDUtils;
+import fi.aalto.evchargingprotocol.framework.ExchangeUtils;
+import fi.aalto.evchargingprotocol.framework.HashChain;
+import fi.aalto.evchargingprotocol.framework.IndyDID;
+import fi.aalto.evchargingprotocol.framework.Initialiser;
+import fi.aalto.evchargingprotocol.framework.PeerDID;
+import fi.aalto.evchargingprotocol.framework.PresentationUtils;
 
 
 public class IndyService extends Service {
     CommonUtils mCommonUtils;
 
-    private Wallet evWallet;
+    private IndyDID erDID, csoDID;
+    private PeerDID evDID;
 
-    DidResults.CreateAndStoreMyDidResult evDID;
-
-    private JSONObject csProofRequestSent;
-
-    private Pool mSofiePool;
-
-    private String csInvKey, csDid, csVerKey;
+    private String csInvKey, csDid;
 
     public static final String ACTION_INDY_INITIALIZED = "com.spire.bledemo.app.ACTION_INDY_INITIALIZED";
 
-
-    // Worker thread to unblock the ble callbacks on binder thread
-    private HandlerThread indyOperationHandlerThread = new HandlerThread("indyOperationHandlerThread");
-    private Handler indyHandler;  // Used Async Task instead
     private SharedPreferences storage;
-
-    public static final String ER_DID = "er_did";
-    public static final String EV_CRED = "er_cred";
-
-    private String erDid;
-    private JSONObject evCred;
 
     private JSONObject exchangeInvitation;
     private JSONObject exchangeRequest;
     private JSONObject exchangeResponse;
+    private JSONObject exchangeComplete;
 
-    private HashChain c;
-    private JSONObject csCred;
-    private boolean mRingCredType = false;
+    private JSONObject evChargingCredential, csCredential, csPresentation;
 
-    private String[] splitMessage(String payload) {
-        return payload.split("\\|");
-    }
+    private HashChain hashChain;
 
-
-    public String joinMessageParts(String... parts) {
-        StringBuilder message = new StringBuilder();
-        for (String part : parts) {
-            message.append(part).append("|");
-        }
-        return message.toString();
-    }
+    long start, end;
 
     public byte[] createMicroChargeRequest() {
         try {
-            return CryptoUtils.encryptMessage(csVerKey, c.revealNextChainStep().getBytes());
-        } catch (IndyException e) {
+            return ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(csDid)), hashChain.revealNextChainStep().getBytes());
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
@@ -107,10 +71,7 @@ public class IndyService extends Service {
 
         try {
             exchangeInvitation = new JSONObject(new String(exchangeInvitationBytes));
-
             csInvKey = exchangeInvitation.getJSONObject("invitation").getJSONArray("recipientKeys").getString(0);
-
-
         } catch (Exception e) {
             if (e instanceof IndyException) {
                 Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
@@ -119,140 +80,74 @@ public class IndyService extends Service {
             }
             e.printStackTrace();
         }
-
-
     }
 
 
-//        createEVdidAndCSOProofRequest
-//        create EV did
-//        create proof request
-//        sign with ev did
-//        encrypt with cs did
-
     public byte[] createExchangeRequest() {
 
-        byte[] completeExchangeRequestSentEncrypted = null;
+        byte[] encryptedExchangeRequestSent = null;
 
         try {
             // 10. Exchange request (step 6)
-
-            // 10.2 Create exchange request
-            exchangeRequest = ConnectionUtils.createExchangeRequest(exchangeInvitation.getJSONObject("invitation"), "CS", evDID.getVerkey());
-            exchangeRequest.put("did", evDID.getDid());
-            Log.w(this.getClass().toString(), String.format("XXL Exchange request message(EV DID length) created: %s", exchangeRequest.toString().getBytes().length));
-
-
-            // complete request message = {proof_request: <proof request for EV>, proof: <proof for CS>, request: <request invitation message as in protocol spec>, signature: <signature over all previous content>}
-            JSONObject completeExchangeRequestSent = new JSONObject()
-                    .put("request", exchangeRequest);
-
-            // 10.6 Encrypt+sign and send message
-
-            byte[] completeExchangeRequestSentRaw = completeExchangeRequestSent.toString().getBytes();
-
+            JSONObject exchangeRequest = ExchangeUtils.createExchangeRequest(exchangeInvitation.getJSONObject("invitation"), evDID);
+            mCommonUtils.startTimer();
+            encryptedExchangeRequestSent = ExchangeUtils.encryptFor(PeerDID.getPublicKeyFromMultiBaseKey(csInvKey), exchangeRequest.toString().getBytes());
+            mCommonUtils.writeLine("request encryption time");
             mCommonUtils.stopTimer();
-            completeExchangeRequestSentEncrypted = CryptoUtils.encryptMessage(csInvKey, completeExchangeRequestSentRaw);
-            Log.w(this.getClass().toString(), String.format("Signature added and message encrypted. Original message: %s", completeExchangeRequestSent));
-            mCommonUtils.writeLine("req enc");
-            mCommonUtils.stopTimer();
-
-
-            mCommonUtils.stopTimer();
-
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        return completeExchangeRequestSentEncrypted;
+        return encryptedExchangeRequestSent;
     }
 
 
-    //        parseCSDid2CSOProofAndEVCertificateProofRequest
-//        unmarshall did, proof and proof request ---- gson?
-//        save did
-//        verify proof
-//        generate proof for proof request(maybe proof request need not be sent over air?)
-//        sign proof
-//        encrypt proof
-//        send proof
-    public void parseExchangeResponse(byte[] exchangeResponseBytes) {
+    public void parseExchangeResponse(byte[] encryptedExchangeResponseReceived) {
 
         try {
 
             mCommonUtils.stopTimer();
-            exchangeResponse = new JSONObject(new String(CryptoUtils.decryptMessage(evWallet, evDID.getVerkey(), exchangeResponseBytes)));
-            mCommonUtils.writeLine("resp dec");
+            byte[] decryptedExchangeResponseReceived = evDID.decrypt(encryptedExchangeResponseReceived);
+            mCommonUtils.writeLine("response decryption time");
             mCommonUtils.stopTimer();
 
-            csDid = exchangeResponse.getJSONObject("response").getString("did");
-            csVerKey = exchangeResponse.getJSONObject("response").getString("verkey");
+            exchangeResponse = new JSONObject(new String(decryptedExchangeResponseReceived));
 
+            csPresentation = exchangeResponse.getJSONObject("presentation");
+            csDid = exchangeResponse.getJSONObject("response").getJSONObject("connection").getString("did");
+            String encodedCSCredential = exchangeResponse.getJSONArray("verifiableCredential").getString(0);
+            csCredential = new JSONObject(new String(Base64.getDecoder().decode(encodedCSCredential)));
 
-            // Parse credential and get cs did
+            boolean isCSPresentationValid;
 
-            csCred = new JSONObject(new String(Base64.getDecoder().decode(exchangeResponse.getString("verifiableCredential"))));
-            JSONObject csCredProof = csCred.getJSONObject("proof");
-            csCred.remove("proof");
-
-
-            mCommonUtils.stopTimer();
-            if (!CryptoUtils.verifyMessageSignature(csCredProof.getString("verificationMethod"), csCred.toString().getBytes(), Base64.getDecoder().decode(csCredProof.getString("jws")))) {
-                System.exit(0);
-            }
-            mCommonUtils.writeLine("resp cred verify");
-            mCommonUtils.stopTimer();
-
-
-            csCred.put("proof", csCredProof);
-
-
-            // 11.1 Verify CS info
-            // 11.1.4 Verify proof provided by CS
-
-
-            mCommonUtils.writeLine("Signature Verification");
-            mCommonUtils.stopTimer();
-
-            // EV needs verify this signature to confirm owning of DID and also make it demonstrable,
-            // if it is not the same when signed by EV, CS will reject it.
-            JSONObject csPresentation = exchangeResponse.getJSONObject("presentation");
-            JSONObject csPresentationProof = csPresentation.getJSONObject("proof");
-            csPresentation.remove("proof");
-
-
-            JSONArray pbKeyList = csCred.getJSONObject("credentialSubject").getJSONArray("id");
+            JSONArray csDidList = csCredential.getJSONObject("credentialSubject").getJSONArray("id");
 
             mCommonUtils.stopTimer();
-            if (pbKeyList.length() > 1) {
-                mRingCredType = true;
-                // RING SIGNATURE VERIFICATION ALTERNATIVELY
-                String pbKeyListString = pbKeyList.join("|").replaceAll("\"", "");
-                if (!Ring.verify(csPresentation.toString().getBytes(), Base64.getDecoder().decode(csPresentationProof.getString("jws")), pbKeyListString)) {
-                    System.exit(0);
-                }
+
+            if (csDidList.length() > 1) {
+                isCSPresentationValid = PresentationUtils.verifyCSPresentation(exchangeResponse.getJSONObject("presentation"), csCredential);
             } else {
-                mRingCredType = false;
-                if (!CryptoUtils.verifyMessageSignature(csPresentationProof.getString("verificationMethod"), csPresentation.toString().getBytes(), Base64.getDecoder().decode(csPresentationProof.getString("jws")))) {
-                    System.exit(0);
-                }
+                isCSPresentationValid = PresentationUtils.verifyCSPresentation(exchangeResponse.getJSONObject("presentation"));
             }
-            mCommonUtils.writeLine("resp sign verify");
+
+            if (!isCSPresentationValid) {
+                System.exit(255);
+            }
+
+            mCommonUtils.writeLine("response verify time (cs presentation only)");
             mCommonUtils.stopTimer();
 
-            // reinstate proof
-            csPresentation.put("proof", csPresentationProof);
+            start = System.currentTimeMillis();
+            boolean isCSCredentialValid = CredentialUtils.verifyCSInfoCredential(csCredential);
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("CS credential validation time: %d ms", end - start));
+            log(Log.INFO, String.format("Is CSO-issued credential valid? %b", isCSCredentialValid));
+            if (!isCSCredentialValid) {
+                System.exit(255);
+            }
 
-            Log.w(this.getClass().toString(), "Checking if CS DID is the one in credential");
-            // TODO: change expected CS DID to public key and check // handle RS case too
-//            if (!expectedCSDID.equals(csPresentationProof.getString("verificationMethod"))) {
-//                System.exit(0);
-//            }
 
-
-            mCommonUtils.stopTimer();
-            mCommonUtils.writeLine("Signature Verificaition Ends");
-
+            mCommonUtils.writeLine("Signature Verification Ends");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -261,16 +156,16 @@ public class IndyService extends Service {
     }
 
     public String getEvDid() {
-        return evDID.getDid();
+        return evDID.getDID();
     }
 
     public String getCsDid() {
         return csDid;
     }
 
-    public String getCsSignature() {
+    public String getCsSignatureValue() {
         try {
-            return exchangeResponse.getJSONObject("presentation").getJSONObject("proof").getString("jws");
+            return csPresentation.getJSONObject("proof").getString("signatureValue");
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -279,89 +174,47 @@ public class IndyService extends Service {
 
 
     public byte[] createExchangeComplete() {
-        byte[] exchangeCompleteSentEncrypted = null;
+        byte[] encryptedExchangeCompleteSent = null;
         try {
 
-            // 12 Send exchange complete (step 9)
-            // 11.5 Generate exchange complete message
+            start = System.currentTimeMillis();
+            hashChain = new HashChain("CHAIN", 10, HashChain.HashingAlgorithm.SHA256);
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("Hash chain generation time for EV: %d ms", end - start));
 
-             JSONObject exchangeCompleteSent = ConnectionUtils.createExchangeComplete(exchangeInvitation.getJSONObject("invitation"), exchangeResponse.getJSONObject("response"));
-
-
-            // 11.3 Generate information to send back to the CS
-            // 11.3.1 Retrieve proof request received by CS and generate proof
-
-            String verifiableCredential = Base64.getEncoder().encodeToString(evCred.toString().getBytes());
-
-            // Creating hashchain
-
-            long start = System.currentTimeMillis();
-            c = new HashChain("SEED", 10, "SHA-256");
-            long end = System.currentTimeMillis();
-            mCommonUtils.writeLine("cmt hash " + (end-start));
-            Log.w(this.getClass().toString(), String.format("Total time: %d ms", (end-start)));
-            String rootStep = c.revealNextChainStep();
-
-
-            // Creating payment commitment
-            JSONObject commitmentMessage = new JSONObject()
-                    .put("hashchain_root", rootStep)
-                    .put("maxChainLength", 10)
-                    .put("timestamp", System.currentTimeMillis() / 1000L)
-                    .put("hashchain_value", 0.1);
-
-            if(mRingCredType) {
-                commitmentMessage.put("cs_signature", getCsSignature());
+            JSONArray csDidList = csCredential.getJSONObject("credentialSubject").getJSONArray("id");
+            JSONObject paymentCommitment;
+            if (csDidList.length() > 1) {
+                paymentCommitment = CommitmentUtils.getEVCommitmentForRingSignature(csPresentation, hashChain.getRoot(), hashChain.getHashingFunction());
             } else {
-                commitmentMessage.put("cs_signature", csDid);
+                paymentCommitment = CommitmentUtils.getEVCommitment(csDid, hashChain.getRoot(), hashChain.getHashingFunction());
             }
 
-            mCommonUtils.stopTimer();
-            String jwsSignature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(evWallet, evDID.getVerkey(), commitmentMessage.toString().getBytes()));
-            mCommonUtils.writeLine("cmt sign");
-            mCommonUtils.stopTimer();
+            start = System.currentTimeMillis();
+            JSONObject evPresentation = PresentationUtils.generateEVPresentation(evDID, paymentCommitment);
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("Presentation creation time for EV: %d ms", end - start));
 
-            String isoDate = getISODate();
-            JSONObject proof = new JSONObject()
-                    .put("type", "Ed25519Signature2018")
-                    .put("created", isoDate)
-                    .put("proofPurpose", "assertionMethod")
-                    .put("verificationMethod", evDID.getVerkey())
-                    .put("jws", jwsSignature);
-
-            commitmentMessage.put("proof", proof);
-
-            exchangeCompleteSent
-                    .put("commitment", commitmentMessage)
-                    .put("verifiableCredential", verifiableCredential);
-
-            mCommonUtils.stopTimer();
-            exchangeCompleteSentEncrypted = CryptoUtils.encryptMessage(csVerKey, exchangeCompleteSent.toString().getBytes());
-            mCommonUtils.writeLine("cmt enc");
-            mCommonUtils.stopTimer();
+            // Step 11: EV -> CS = Exchange complete + EV presentation + payment commitment
+            exchangeComplete = ExchangeUtils.createExchangeComplete(exchangeResponse.getJSONObject("response"), evChargingCredential, evPresentation);
+            start = System.currentTimeMillis();
+            encryptedExchangeCompleteSent = ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(csDid)), exchangeComplete.toString().getBytes());
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("Exchange complete encryption time from EV: %d ms", end - start));
+            log(Log.INFO, String.format("Exchange complete sent: %s", exchangeComplete));
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return exchangeCompleteSentEncrypted;
+        return encryptedExchangeCompleteSent;
     }
 
     public String getISODate() {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
-        return  df.format(new Date());  // iSO 8601
+        return df.format(new Date());  // iSO 8601
     }
-
-
-    public void sendchargeStartMessage() {
-
-    }
-
-    public void releaseMicroCharge() {
-
-    }
-
 
     /*
      * Service life cycle functions
@@ -378,16 +231,6 @@ public class IndyService extends Service {
     }
 
 
-    @Override
-    public boolean onUnbind(Intent intent) {
-        // After using a given device, you should make sure that BluetoothGatt.close() is called
-        // such that resources are cleaned up properly.  In this particular example, releaseResources() is
-        // invoked when the UI is disconnected from the Service.
-        releaseResources();
-        return super.onUnbind(intent);
-    }
-
-
     private final IBinder mBinder = new LocalBinder();
 
     private void broadcastUpdate(final String action) {
@@ -396,164 +239,17 @@ public class IndyService extends Service {
     }
 
 
-    /*
-    Full initialization requires
-    0. Initialize indy, pool connection
-    1. Wallet creation / opening EV, ER, stewart
-    2. Did creation for EV, ER, stewart
-    3. schema creation
-    4. schema definition with ER did
-    5. credential offer
-    6. credential request with EV wallet master secret
-    7. credential creation with offer and request
-    */
-
-    // Refresh credential cache and initialize fully
-    public void generateCredentials() {
-
-        try {
-
-            // 1. Indy initialisation
-
-            Log.i(this.getClass().toString(), "Initialising Indy context...");
-            IndyUtils.initialise(getApplicationContext(), false);
-
-            // X. IF credentials are generated, skip after this step to indy Initialization.
-            if (!storage.getString(EV_CRED, "").isEmpty()) {
-//                if(false) {
-                erDid = storage.getString(ER_DID, null);
-                evCred = new JSONObject(storage.getString(EV_CRED, null));
-
-                Log.i(this.getClass().toString(), "Opening EV wallet...");
-                evWallet = WalletUtils.openEVWallet();
-                evDID = DIDUtils.createEVDID(evWallet);
-
-                return;
-            }
-
-            // 2. Wallets creation
-
-            Log.i(this.getClass().toString(), "Creating ER and steward wallets...");
-            WalletUtils.createEVWallet();
-            WalletUtils.createERWallet();
-            WalletUtils.createStewardWallet();
-
-
-            // 3. Wallets opening
-
-            Log.i(this.getClass().toString(), "Opening EV wallet...");
-            evWallet = WalletUtils.openEVWallet();
-            Log.i(this.getClass().toString(), "Opening ER wallet...");
-            Wallet erWallet = WalletUtils.openERWallet();
-            Log.i(this.getClass().toString(), "Opening steward wallet...");
-            Wallet stewardWallet = WalletUtils.openStewardWallet();
-
-
-            // 4. Pool configuration + connection
-
-            Log.i(this.getClass().toString(), "Creating test pool configuration...");
-            PoolUtils.createSOFIEPoolConfig();
-
-            Log.i(this.getClass().toString(), "Connecting to SOFIE pool...");
-            //mSofiePool = PoolUtils.connectToSOFIEPool();
-
-
-            // 5. DIDs creation
-
-            Log.i(this.getClass().toString(), "Calculating EV DID...");
-            evDID = DIDUtils.createEVDID(evWallet);
-
-            Log.i(this.getClass().toString(), "Calculating steward DID...");
-            DidResults.CreateAndStoreMyDidResult stewardDID = DIDUtils.createStewardDID(stewardWallet);
-
-            Log.i(this.getClass().toString(), "Calculating and writing on ledger ER DID...");
-            DidResults.CreateAndStoreMyDidResult erDID = DIDUtils.createAndWriteERDID(erWallet, stewardWallet, stewardDID.getDid(), mSofiePool);
-
-
-            // 10. Credentials creation
-
-            TimeZone tz = TimeZone.getTimeZone("UTC");
-            DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
-            df.setTimeZone(tz);
-            String isoDate = df.format(new Date());  // iSO 8601
-
-             evCred = new JSONObject()
-                    .put("@context", new JSONArray(new String[] {"https://www.w3.org/2018/credentials/v1",
-                            "https://www.w3.org/2020/credentials/ev-info/v1"}))
-                    .put("id", "https://www.w3.org/2020/credentials/ev-info")
-                    .put("type", new JSONArray(new String[] { "VerifiableCredential",
-                            "EVInfoCredential"}))
-                    .put("credentialSubject", new JSONObject().put("id", evDID.getDid()))   // Simple credential
-                    .put("issuer", erDID.getDid())
-                    .put("issuanceDate", isoDate)
-                    .put("expirationDate","2024-12-31T23:59:59Z");
-
-            mCommonUtils.stopTimer();
-            String jwsSignature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(erWallet, erDID.getVerkey(), evCred.toString().getBytes()));
-            mCommonUtils.writeLine("signature size = " + jwsSignature.getBytes().length);
-
-            JSONObject proof = new JSONObject()
-                    .put("type", "Ed25519Signature2018")
-                    .put("created", isoDate)
-                    .put("proofPurpose", "assertionMethod")
-                    .put("verificationMethod", erDID.getVerkey())
-                    .put("jws", jwsSignature);   // what fields to include in JWS??
-
-            evCred.put("proof", proof);
-
-            mCommonUtils.writeLine("CREDENTIAL CREATION, size = " + evCred.toString().getBytes().length);
-            mCommonUtils.stopTimer();
-
-            // 15. Pool disconnection
-
-
-            Log.i(this.getClass().toString(), "Closing test pool...");
-            //mSofiePool.close();
-            Log.i(this.getClass().toString(), "Test pool closed.");
-
-
-            // 16. Wallets de-initialisation
-
-            Log.i(this.getClass().toString(), "Closing ER wallet...");
-            erWallet.close();
-            Log.i(this.getClass().toString(), "ER wallet closed.");
-            Log.i(this.getClass().toString(), "Closing steward wallet...");
-            stewardWallet.close();
-            Log.i(this.getClass().toString(), "Steward wallet closed.");
-
-            // Saving ids to local cache.
-            storage.edit()
-                    .putString(ER_DID, erDID.getDid())
-                    .putString(EV_CRED, evCred.toString())
-                    .apply();
-
-            // Adding Credential Ids
-            erDid = storage.getString(ER_DID, null);
-            evCred = new JSONObject(storage.getString(EV_CRED, null));
-
-        } catch (Exception e) {
-            if (e instanceof IndyException) {
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
-                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
-            }
-            e.printStackTrace();
-        }
-    }
-
-
     public void initialize() {
         mCommonUtils = new CommonUtils("IndyService");
         storage = getSharedPreferences("IndyService", MODE_PRIVATE);
-        indyOperationHandlerThread.start();
-        indyHandler = new Handler(indyOperationHandlerThread.getLooper());
+
         new IndyInitialisationTask().execute();
     }
 
-    /*
-    Offline tasks for Indy: intialize, create did and credentials, close wallets and connections
-     */
 
+    /*
+    Offline tasks for Indy: intialize, create did and credentials
+     */
     final class IndyInitialisationTask extends AsyncTask<Void, Void, Void> {
         @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
         @Override
@@ -564,35 +260,27 @@ public class IndyService extends Service {
         }
     }
 
-
-    public void releaseResources() {
-        indyOperationHandlerThread.quitSafely();
-
+    private void generateCredentials() {
         try {
-            // 14. Pool disconnection
+            Initialiser.init(this.getApplicationContext());
+            erDID = DIDUtils.getERDID();
+            csoDID = DIDUtils.getCSODID();
 
-            Log.i(this.getClass().toString(), "Closing test pool...");
-            //mSofiePool.close();
-            Log.i(this.getClass().toString(), "Test pool closed.");
+            evDID = DIDUtils.getEVDID();
 
-            // 15. Wallets de-initialisation
+            //long start = SystemClock.elapsedRealtime();
+            evChargingCredential = CredentialUtils.getEVChargingCredential(evDID, erDID);
+            //mCommonUtils.writeLine("time: " + (SystemClock.elapsedRealtime() - start) + " credential size: " + evChargingCredential.toString().length());
 
-            Log.i(this.getClass().toString(), "Closing EV wallet...");
-            evWallet.close();
-            Log.i(this.getClass().toString(), "EV wallet closed.");
-
-            mCommonUtils.stopTimer();
 
         } catch (Exception e) {
-            if (e instanceof IndyException) {
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
-                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
-            }
             e.printStackTrace();
         }
     }
 
+    private static void log(int priority, String message) {
+        Log.println(priority, IndyService.class.toString(), message);
+    }
 
 }
 

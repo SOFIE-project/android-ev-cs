@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT8;
 import static android.content.ContentValues.TAG;
 
 public class BluetoothLeService extends Service {
@@ -105,7 +106,7 @@ public class BluetoothLeService extends Service {
     private BluetoothGattCharacteristic chargingProtocolState;
     private BluetoothGattCharacteristic tx;
     private BluetoothGattCharacteristic rx;
-    final private int mtuLength = 510;  // 514 on my phones, can't detect either
+    final private int mtuLength = 510;  // max 514 on my phones
 
     // Worker thread to unblock the ble callbacks on binder thread
     private HandlerThread bleOperationHandlerThread = new HandlerThread("bleOperationHandlerThread");
@@ -123,7 +124,7 @@ public class BluetoothLeService extends Service {
             mCommonUtils.stopTimer();
             peripheralDevice = result.getDevice();
             mBluetoothGatt = peripheralDevice.connectGatt(getApplicationContext(), false, callback, BluetoothDevice.TRANSPORT_LE);
-                    //BluetoothDevice.PHY_LE_2M);
+            //BluetoothDevice.PHY_LE_2M);
         }
     };
 
@@ -131,13 +132,6 @@ public class BluetoothLeService extends Service {
     // Main BTLE device callback where much of the logic occurs.
     private BluetoothGattCallback callback = new BluetoothGattCallback() {
         // Called whenever the device connection state changes, i.e. from disconnected to connected.
-
-
-//        @Override
-//        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
-//            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
-//            commandQueue.nudge();
-//        }
 
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
@@ -156,7 +150,6 @@ public class BluetoothLeService extends Service {
                 mCommonUtils.writeLine("Connected!");
                 // Discover services.
                 mCommonUtils.stopTimer();
-
 
                 bleHandler.post(new Runnable() {
                     @Override
@@ -215,7 +208,7 @@ public class BluetoothLeService extends Service {
                                 mCommonUtils.writeLine("Couldn't get RX client descriptor!");
                             }
                         }
-                    },1);
+                    }, 1);
 
 
                 } else {
@@ -242,9 +235,8 @@ public class BluetoothLeService extends Service {
 
                         byte[] rxMessage = mRxBuffer.extract();
                         mCommonUtils.writeLine("recieved mesg from cs: " + rxMessage.length);
-//                        mCommonUtils.stopTimer();
 
-                        int presetStage = chargingProtocolState.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                        int presetStage = chargingProtocolState.getIntValue(FORMAT_UINT8, 0);
                         broadcastUpdate(RX_MSG_RECVD, presetStage, rxMessage);
                     }
                 }
@@ -257,14 +249,7 @@ public class BluetoothLeService extends Service {
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicRead(gatt, characteristic, status);
-
-            try {
-                mCommonUtils.writeLine(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0).toString());
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
                 commandQueue.operationCompleted();
-            }
         }
 
         @Override
@@ -272,11 +257,8 @@ public class BluetoothLeService extends Service {
             super.onCharacteristicWrite(gatt, characteristic, status);
             try {
                 if (characteristic.getUuid().equals(CHARGING_STATE_UUID)) {
-                    mCommonUtils.writeLine("onCharacteristicWrite: state written");
+                    mCommonUtils.writeLine("onCharacteristicWrite: state written" + characteristic.getIntValue(FORMAT_UINT8, 0));
                     mCommonUtils.stopTimer();
-                } else if (characteristic.getStringValue(0).endsWith("ä")) {
-                    mCommonUtils.writeLine("onCharacteristicWrite: long data written");
-                    //mCommonUtils.stopTimer();
                 }
 
             } catch (Exception e) {
@@ -297,10 +279,6 @@ public class BluetoothLeService extends Service {
                 e.printStackTrace();
             } finally {
                 commandQueue.operationCompleted();
-
-//                if (CHARACTERISTIC_USER_DESCRIPTION_UUID.equals(descriptor.getUuid())) {
-//
-//                }
             }
         }
 
@@ -313,7 +291,6 @@ public class BluetoothLeService extends Service {
             return false;
         }
 
-        // enable notification in server by default?
         commandQueue.request(new Runnable() {
             @Override
             public void run() {
@@ -325,7 +302,6 @@ public class BluetoothLeService extends Service {
         });
 
 
-        // does it matter time wise??
 /*        commandQueue.request(new Runnable() {
             @Override
             public void run() {
@@ -355,11 +331,10 @@ public class BluetoothLeService extends Service {
 
         while (start < payload.length) {
             int end = Math.min(payload.length, start + mtuLength);
-            byte[] chunk = Arrays.copyOfRange(payload,start,end);
+            byte[] chunk = Arrays.copyOfRange(payload, start, end);
             safeWriteCharacteristic(tx, chunk);
             start += mtuLength;
         }
-
     }
 
 
@@ -370,7 +345,7 @@ public class BluetoothLeService extends Service {
         commandQueue.request(new Runnable() {
             @Override
             public void run() {
-                bleCharacteristic.setValue(number, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                bleCharacteristic.setValue(number, FORMAT_UINT8, 0);
                 mBluetoothGatt.writeCharacteristic(bleCharacteristic);
             }
         });
@@ -448,7 +423,7 @@ public class BluetoothLeService extends Service {
         commandQueue.request(new Runnable() {
             @Override
             public void run() {
-                if(mBluetoothGatt != null) {
+                if (mBluetoothGatt != null) {
                     Log.v(TAG, "cancel called");
                     mBluetoothGatt.disconnect();
                 }
@@ -498,7 +473,7 @@ public class BluetoothLeService extends Service {
             mBluetoothGatt = null;
         }
         mCommonUtils.startTimer();
-        mbleScanner= mBluetoothAdapter.getBluetoothLeScanner();
+        mbleScanner = mBluetoothAdapter.getBluetoothLeScanner();
         mbleScanner.startScan(targetServices, scanSettings, scanCallback);
     }
 
@@ -524,11 +499,5 @@ public class BluetoothLeService extends Service {
     public void clearTimeList() {
         mCommonUtils.clearTimeList();
     }
-
-
-
-//-------------------------------------------------------------------------------------------------
-// BLE service related code
-
 
 }

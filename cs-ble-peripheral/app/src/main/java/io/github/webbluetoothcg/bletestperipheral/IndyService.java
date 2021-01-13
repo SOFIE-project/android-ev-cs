@@ -1,135 +1,102 @@
 package io.github.webbluetoothcg.bletestperipheral;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.hyperledger.indy.sdk.IndyException;
-import org.hyperledger.indy.sdk.did.DidResults;
-import org.hyperledger.indy.sdk.pool.Pool;
-import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.OutputStreamWriter;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
 import java.util.TimeZone;
 
-import fi.aalto.indy_utils.ConnectionUtils;
-import fi.aalto.indy_utils.CryptoUtils;
-import fi.aalto.indy_utils.DIDUtils;
-import fi.aalto.indy_utils.HashChain;
-import fi.aalto.indy_utils.IndyUtils;
-import fi.aalto.indy_utils.PoolUtils;
-import fi.aalto.indy_utils.WalletUtils;
-
+import fi.aalto.evchargingprotocol.framework.RingSignatureUtils;
 import ring.Ring;
 
-import static fi.aalto.indy_utils.CryptoUtils.generateMessageSignature;
+import com.goterl.lazycode.lazysodium.utils.KeyPair;
+
+import fi.aalto.evchargingprotocol.framework.CredentialUtils;
+import fi.aalto.evchargingprotocol.framework.DIDUtils;
+import fi.aalto.evchargingprotocol.framework.ExchangeUtils;
+import fi.aalto.evchargingprotocol.framework.HashChain;
+import fi.aalto.evchargingprotocol.framework.IndyDID;
+import fi.aalto.evchargingprotocol.framework.Initialiser;
+import fi.aalto.evchargingprotocol.framework.PeerDID;
+import fi.aalto.evchargingprotocol.framework.PresentationUtils;
+import fi.aalto.evchargingprotocol.framework.SignatureUtils;
+
 
 public class IndyService extends Service {
 
     CommonUtils mCommonUtils;
 
-    private Wallet csWallet;
-
-    private DidResults.CreateAndStoreMyDidResult csDID;
-
-    private Pool mSofiePool;
-
-    private String evDid, evVerKey;
+    private String evDid;
 
     public static final String ACTION_INDY_INITIALIZED = "com.spire.bledemo.app.ACTION_INDY_INITIALIZED";
 
-    public static final String CSO_DID = "cso_did";
-    public static final String CS_CRED = "cs_cred";
-    public static final String RS_CRED = "rs_cred";
     public static final String CRED_TYPE = "cred_type";
 
-    // Worker thread to unblock the ble callbacks on binder thread
-    private HandlerThread indyOperationHandlerThread = new HandlerThread("indyOperationHandlerThread");
-    private Handler indyHandler;
     private SharedPreferences storage;
 
-    private String csoDid;
-    private String csInvKey;
-    private JSONObject csCred;
-    private JSONObject evCred;
+    private KeyPair csInvitationKeypair;
+    private JSONObject evChargingCredential, csInfoCredential;
 
     private JSONObject exchangeRequest;
     private JSONObject exchangeResponse;
     private JSONObject exchangeComplete;
     private JSONObject commitmentMessage;
-    private JSONObject csSignature;
+    private JSONObject csPresentation;
 
     private String lastStep;
 
+    private IndyDID erDID, csoDID;
+    private PeerDID csDID;
+
+    private long start, end;
 
     public String getCsDid() {
-        return csDID.getDid();
+        return csDID.getDID();
     }
 
-    // CS function
-    // createCsDid1
+
     public byte[] createExchangeInvitation() {
 
-        try {
-            // 9. Exchange invitation (step 4)
-
-
-            // 9.2 Create exchange invitation
-
-            JSONObject exchangeInvitationSent = ConnectionUtils.createExchangeInvitation("CS", csInvKey);
-            Log.w(this.getClass().toString(), String.format("Exchange invitation message created: %s", exchangeInvitationSent));
-
-
-            // 9.4 Send message
-
-            JSONObject completeExchangeInvitationSent = new JSONObject().put("invitation", exchangeInvitationSent);
-
-            return completeExchangeInvitationSent.toString().getBytes();
-
-        } catch (Exception e) {
-            if (e instanceof IndyException) {
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
-                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
-            }
-            e.printStackTrace();
-        }
-
-        return null;
+        // Step 3: CS -> EV = Exchange Invitation
+        JSONObject exchangeInvitation = ExchangeUtils.createExchangeInvitation(csInvitationKeypair.getPublicKey().getAsBytes(), "ItalEnergy");
+        return exchangeInvitation.toString().getBytes();
     }
 
 
-    // CS function
-    // parseEVDIDAndCSOProofRequest
-    public String parseExchangeRequest(byte[] rawBytes) {
+    public String parseExchangeRequest(byte[] encryptedExchangeRequestReceived) {
 
         try {
             // 11.1.1 Decrypt exchange request
+            mCommonUtils.startTimer();
+            byte[] decryptedExchangeRequestReceived = ExchangeUtils.decrypt(encryptedExchangeRequestReceived, csInvitationKeypair.getSecretKey().getAsBytes(), csInvitationKeypair.getPublicKey().getAsBytes());
+            mCommonUtils.writeLine("request decryption time");
             mCommonUtils.stopTimer();
-            byte[] completeExchangeRequestReceivedRaw = CryptoUtils.decryptMessage(csWallet, csInvKey, rawBytes);
-            mCommonUtils.writeLine("req dec:");
-            mCommonUtils.stopTimer();
-            exchangeRequest = new JSONObject(new String(completeExchangeRequestReceivedRaw));
+
+            exchangeRequest = new JSONObject(new String(decryptedExchangeRequestReceived));
             Log.w(this.getClass().toString(), String.format("Exchange request decrypted: %s", exchangeRequest));
 
-            evDid = exchangeRequest.getJSONObject("request").getString("did");
-            evVerKey = exchangeRequest.getJSONObject("request").getString("verkey");
+            evDid = exchangeRequest.getJSONObject("request").getJSONObject("connection").getString("did");
 
         } catch (Exception e) {
             if (e instanceof IndyException) {
@@ -142,62 +109,29 @@ public class IndyService extends Service {
         return evDid;
     }
 
-    // CS function
-    // createCSDid2CSOProofAndEVCertificateProofRequest
+
     public byte[] createExchangeResponse() {
         byte[] exchangeResponseEncrypted = null;
         try {
 
-            // 11. Exchange response (step 8)
-            JSONObject exchangeResponseSent = ConnectionUtils.createExchangeResponse(exchangeRequest.getJSONObject("request"), csDID.getVerkey());
-            exchangeResponseSent.put("did", csDID.getDid());
+            // Step 9: CS -> EV = Exchange Response + CS Presentation
 
-            // 12. Proofs creation
-
-            String verifiableCredential = Base64.getEncoder().encodeToString(csCred.toString().getBytes());
-
-            // Creating Signature/Presentation for proving DID ownership
-            JSONObject presentation = new JSONObject()
-                    .put("@context", new JSONArray(new String[] {"https://www.w3.org/2018/credentials/v1"}))
-                    .put("did", evDid);    // EV DID
-
-        mCommonUtils.stopTimer();
-            String jwsSignature, pbKeyListString;
-            if(getCredType()) {
-                //RING SIGNATURE
-                pbKeyListString = csCred.getJSONObject("credentialSubject").getJSONArray("id").join("|").replaceAll("\"", "");
-                jwsSignature  = Base64.getEncoder().encodeToString(Ring.sign(presentation.toString().getBytes(), "0000000000000000000000000CS-0000".getBytes(), pbKeyListString ));
-            }  else {
-                // REGULAR SIGNATURE
-                jwsSignature = Base64.getEncoder().encodeToString(generateMessageSignature(csWallet, csDID.getVerkey(), presentation.toString().getBytes()));
+            mCommonUtils.stopTimer();
+            if (getCredType()) {
+                csPresentation = PresentationUtils.generateCSPresentation(csDID, evDid, csInfoCredential);
+            } else {
+                csPresentation = PresentationUtils.generateCSPresentation(csDID, evDid);
             }
+            mCommonUtils.writeLine("response signing time");
+            mCommonUtils.stopTimer();
 
-        mCommonUtils.writeLine("resp sign");
-        mCommonUtils.stopTimer();
-            mCommonUtils.writeLine("signature size = " + jwsSignature.getBytes().length);
-
-            String isoDate = getISODate();
-            JSONObject proof = new JSONObject()
-                    .put("type", "Ed25519Signature2018")
-                    .put("created", isoDate)
-                    .put("proofPurpose", "assertionMethod")
-                    .put("verificationMethod", csDID.getVerkey())
-                    .put("jws", jwsSignature);   // what fields to include in JWS??
-
-            presentation.put("proof", proof);
-
-            csSignature = presentation;
-
-            exchangeResponse = new JSONObject()
-                    .put("response", exchangeResponseSent)
-                    .put("verifiableCredential", verifiableCredential)
-                    .put("presentation", presentation);
-
+            exchangeResponse = ExchangeUtils.createExchangeResponse(exchangeRequest.getJSONObject("request"), csInfoCredential, csPresentation, csDID);
 
             mCommonUtils.stopTimer();
-            exchangeResponseEncrypted = CryptoUtils.encryptMessage(evVerKey, exchangeResponse.toString().getBytes());
-            mCommonUtils.writeLine("resp enc");
+            exchangeResponseEncrypted = ExchangeUtils.encryptFor(PeerDID.getEncKeyFromVerKey(PeerDID.getVerkeyFromDID(evDid)), exchangeResponse.toString().getBytes());
+            mCommonUtils.writeLine("response encryption time");
             mCommonUtils.stopTimer();
+
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -207,71 +141,43 @@ public class IndyService extends Service {
 
 
     // cs function - verifyErChargingProof
-    public boolean parseExchangeComplete(byte[] encryptedProof) {
+    public boolean parseExchangeComplete(byte[] encryptedExchangeCompleteReceived) {
 
         boolean isERChargingProofRevealingValid = false;
 
         try {
 
-            mCommonUtils.stopTimer();
-            exchangeComplete = new JSONObject(new String(CryptoUtils.decryptMessage(csWallet, csDID.getVerkey(), encryptedProof)));
-            mCommonUtils.writeLine("cmt dec");
-            mCommonUtils.stopTimer();
+            start = System.currentTimeMillis();
+            byte[] decryptedExchangeCompleteReceived = csDID.decrypt(encryptedExchangeCompleteReceived);
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("Exchange complete decryption time from CS: %d ms", end - start));
+            exchangeComplete = new JSONObject(new String(decryptedExchangeCompleteReceived));
+            log(Log.INFO, String.format("Exchange complete received: %s", exchangeComplete));
 
-            // Parse credential and get cs did
-
-            evCred = new JSONObject(new String(Base64.getDecoder().decode(exchangeComplete.getString("verifiableCredential"))));
-            JSONObject evCredProof = evCred.getJSONObject("proof");
-            evCred.remove("proof");
-
-            String expectedEVDID = evCred.getJSONObject("credentialSubject").getString("id");
-
-            mCommonUtils.stopTimer();
-            // Verifying EV Cred
-            if (!CryptoUtils.verifyMessageSignature(evCredProof.getString("verificationMethod"), evCred.toString().getBytes(), Base64.getDecoder().decode(evCredProof.getString("jws")))) {
-                System.exit(0);
+            start = System.currentTimeMillis();
+            boolean isEVPresentationValid = PresentationUtils.verifyEVPresentation(exchangeComplete.getJSONObject("presentation"));
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("EV presentation validation time: %d ms", end - start));
+            log(Log.INFO, String.format("Is EV presentation valid? %b", isEVPresentationValid));
+            if (!isEVPresentationValid) {
+                System.exit(255);
             }
-            mCommonUtils.writeLine("cmt cred verify");
-            mCommonUtils.stopTimer();
-
-
-            evCred.put("proof", evCredProof);
-
-
-            // 11.1 Verify EV Signature
-
-            mCommonUtils.writeLine("Signature Verification");
-            mCommonUtils.stopTimer();
-
-            commitmentMessage = exchangeComplete.getJSONObject("commitment");
-            JSONObject evPresentationProof = commitmentMessage.getJSONObject("proof");
-            commitmentMessage.remove("proof");
-
-            mCommonUtils.stopTimer();
-            if (!CryptoUtils.verifyMessageSignature(evPresentationProof.getString("verificationMethod"), commitmentMessage.toString().getBytes(), Base64.getDecoder().decode(evPresentationProof.getString("jws")))) {
-                System.exit(0);
+            String encodedEVCredential = exchangeComplete.getJSONArray("verifiableCredential").getString(0);
+            evChargingCredential = new JSONObject(new String(Base64.getDecoder().decode(encodedEVCredential)));
+            start = System.currentTimeMillis();
+            boolean isEVCredentialValid = CredentialUtils.verifyEVChargingCredential(evChargingCredential);
+            end = System.currentTimeMillis();
+            log(Log.INFO, String.format("EV credential validation time: %d ms", end - start));
+            log(Log.INFO, String.format("Is ER-issued credential valid? %b", isEVCredentialValid));
+            if (!isEVCredentialValid) {
+                System.exit(255);
             }
-            mCommonUtils.writeLine("cmt sign verify");
-            mCommonUtils.stopTimer();
 
-            commitmentMessage.put("proof", evPresentationProof);
+            commitmentMessage = new JSONObject(new String(Base64.getDecoder().decode(exchangeComplete.getJSONObject("presentation").getString("commitment"))));
+            lastStep = commitmentMessage.getString("w0");
 
-            Log.w(this.getClass().toString(), "Checking if EV DID is the one in credential");
-            // TODO: get pb key from EV DID
-//            if (!expectedEVDID.equals(evPresentationProof.getString("verificationMethod"))) {
-//                System.exit(0);
-//            }
-
-            mCommonUtils.stopTimer();
-            mCommonUtils.writeLine("Signature Verification Ends");
-
-
-            lastStep = commitmentMessage.getString("hashchain_root");
-
-//            verifyCommitmentSignature();
             isERChargingProofRevealingValid = true;
 
-            mCommonUtils.stopTimer();
         } catch (Exception e) {
             if (e instanceof IndyException) {
                 Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
@@ -285,46 +191,9 @@ public class IndyService extends Service {
     }
 
 
-/*
-    private void verifyCommitmentSignature() {
-        try {
-            JSONObject paymentCommitmentSignatureData = new JSONObject()
-                    .put("ev_proof", erChargingProofRevealing)
-                    .put("cs_signature", proofSignature)
-                    .put("hashchain_root", commitmentMessage.getString("hashchain_root"))
-                    .put("maxChainLength", commitmentMessage.getInt("maxChainLength"))
-                    .put("timestamp", commitmentMessage.getLong("timestamp"))
-                    .put("hashchain_value", commitmentMessage.getDouble("hashchain_value"));
-
-            String signature = commitmentMessage.getString("signature");
-//
-//            CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000EV-DID");
-//
-//            String calculatedSign = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(csWallet, evVerKey, paymentCommitmentSignatureData.toString().getBytes()));
-//
-//            if(!calculatedSign.equals(signature)) {
-//                System.exit(0);
-//            }
-
-            if (!CryptoUtils.verifyMessageSignature(evVerKey, paymentCommitmentSignatureData.toString().getBytes(), Base64.getDecoder().decode(signature))) {
-                System.exit(0);
-            }
-
-        } catch (Exception e) {
-            if (e instanceof IndyException) {
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
-                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
-            }
-            e.printStackTrace();
-        }
-
-    }
-*/
-
     public boolean verifyHashstep(byte[] encryptedHash) {
         try {
-            String nextStep = new String(CryptoUtils.decryptMessage(csWallet, csDID.getVerkey(), encryptedHash));
+            String nextStep = new String(csDID.decrypt(encryptedHash));
             boolean isValidStep = HashChain.isNextStepValid("SHA-256", nextStep, lastStep);
             lastStep = nextStep;
             return isValidStep;
@@ -342,7 +211,7 @@ public class IndyService extends Service {
 
     public String getCsSignature() {
         try {
-            return csSignature.getJSONObject("proof").getString("jws");
+            return csPresentation.getJSONObject("proof").getString("signatureValue");
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -355,15 +224,15 @@ public class IndyService extends Service {
             JSONObject transactionDetail = new JSONObject()
                     .put("commitment", commitmentMessage)
                     .put("lastHashStep", lastStep)
-                    .put("csSignature", csSignature)
-                    .put("csCred", csCred)
-                    .put("evCred", evCred);
+                    .put("csPresentation", csPresentation)
+                    .put("csCred", csInfoCredential)
+                    .put("evCred", evChargingCredential);
             mCommonUtils.writeLine("transaction size " + transactionDetail.toString().getBytes().length
                     + " " + commitmentMessage.toString().getBytes().length
                     + " " + lastStep.getBytes().length
-                    + " " + csSignature.toString().getBytes().length
-                    + " " + csCred.toString().getBytes().length
-                    + " " + evCred.toString().getBytes().length);
+                    + " " + csPresentation.toString().getBytes().length
+                    + " " + csInfoCredential.toString().getBytes().length
+                    + " " + evChargingCredential.toString().getBytes().length);
 
             return transactionDetail;
 
@@ -377,14 +246,12 @@ public class IndyService extends Service {
         storage.edit()
                 .putBoolean(CRED_TYPE, ringCred)
                 .apply();
-        try {
-            if (getCredType()) {
-                csCred = new JSONObject(storage.getString(RS_CRED, null));
-            } else {
-                csCred = new JSONObject(storage.getString(CS_CRED, null));
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
+        
+        if (getCredType()) {
+            JSONArray csDidList = DIDUtils.getBulkCSDID(50);
+            csInfoCredential = CredentialUtils.getRingCSInfoCredential(csDidList, csoDID);
+        } else {
+            csInfoCredential = CredentialUtils.getCSInfoCredential(csDID, csoDID);
         }
     }
 
@@ -406,17 +273,6 @@ public class IndyService extends Service {
         return mBinder;
     }
 
-
-    @Override
-    public boolean onUnbind(Intent intent) {
-        // After using a given device, you should make sure that BluetoothGatt.close() is called
-        // such that resources are cleaned up properly.  In this particular example, releaseResources() is
-        // invoked when the UI is disconnected from the Service.
-        releaseResources();
-        return super.onUnbind(intent);
-    }
-
-
     private final IBinder mBinder = new LocalBinder();
 
     private void broadcastUpdate(final String action) {
@@ -425,28 +281,14 @@ public class IndyService extends Service {
     }
 
     public void initialize() {
-
-        mCommonUtils = new CommonUtils("Ring Sing");
-
+        mCommonUtils = new CommonUtils("Ring Sign");
         storage = getSharedPreferences("IndyService", MODE_PRIVATE);
-
-        indyOperationHandlerThread.start();
-        indyHandler = new Handler(indyOperationHandlerThread.getLooper());
-
-//        indyHandler.post(new Runnable() {
-//            @Override
-//            public void run() {
-//                initializeIndy();
-//            }
-//        });
-
         new IndyInitialisationTask().execute();
-
     }
+
     /*
     Offline tasks for Indy: intialize, create did and credentials, close wallets and connections
      */
-
     final class IndyInitialisationTask extends AsyncTask<Void, Void, Void> {
         @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
         @Override
@@ -458,296 +300,55 @@ public class IndyService extends Service {
     }
 
     private void generateCredentials() {
-
         try {
+            Initialiser.init(this.getApplicationContext());
 
-            mCommonUtils.writeLine("Credential Generation");
-            mCommonUtils.startTimer();
-            // 1. Indy initialisation
+            erDID = DIDUtils.getERDID();
+            csoDID = DIDUtils.getCSODID();
 
-            Log.i(this.getClass().toString(), "Initialising Indy context...");
-            IndyUtils.initialise(getApplicationContext(), false);
+            csDID = DIDUtils.getCSDID();
+            //long start = SystemClock.elapsedRealtime();
 
-            csWallet = WalletUtils.openCSWallet();
-
-            // 9.1 Create static key
-
-            csInvKey = CryptoUtils.generateAndStoreKey(csWallet, "00000000000000000000000000CS-INV");
-            Log.w(this.getClass().toString(), String.format("Static key generated to kick-off protocol: %s", csInvKey));
-
-            csDID = DIDUtils.createCSDID(csWallet);
-
-            // X. IF credentials are generated, skip after this step to indy Initialization.
-             if (!storage.getString(CS_CRED, "").isEmpty()) {
- //                if (false) {
-
-                 csoDid = storage.getString(CSO_DID, null);
-                 if(getCredType()) {
-                     csCred = new JSONObject(storage.getString(RS_CRED, null));
-                 } else {
-                     csCred = new JSONObject(storage.getString(CS_CRED, null));
-                 }
-
-                 return;
-             }
-
-            mCommonUtils.writeLine("Initialize Indy");
-            mCommonUtils.stopTimer();
-
-            // 2. Wallets creation
-
-            Log.i(this.getClass().toString(), "Creating EV, CSO, CS, DSO and steward wallets...");
-            WalletUtils.createCSWallet();
-            WalletUtils.createCSOWallet();
-            WalletUtils.createStewardWallet();
-
-            mCommonUtils.writeLine("Wallet Creation");
-            mCommonUtils.stopTimer();
-
-            // 3. Wallets opening
-
-            Log.i(this.getClass().toString(), "Opening CS wallet...");
-            //csWallet = WalletUtils.openCSWallet();
-            Log.i(this.getClass().toString(), "Opening CSO wallet...");
-            Wallet csoWallet = WalletUtils.openCSOWallet();
-            Log.i(this.getClass().toString(), "Opening steward wallet...");
-            Wallet stewardWallet = WalletUtils.openStewardWallet();
-
-            mCommonUtils.writeLine("Wallet Opening");
-
-
-            // Regular Sign CALCULATION
-
-           String payload = "{\"proof\":{\"proofs\":[{\"primary_proof\":{\"eq_proof\":{\"revealed_attrs\":{},\"a_prime\":\"98323723986663063931094769481216252707767155756069170484556963684446208867192555394474116343794075986933986626410675893897605052603552941781137180285219034045404218520656553263526933350569269900532576967268137624839397984206223925864304709743191769836838238024707209632292139738420369226616244858332600721134263178679352820497425563128067102385723903443517419950309232063416981982562928979523619068647413349730489674877456693094390848681301822265833583110525960523698019258361175315488079295191740466114452145402776754259959940783838930672534959254068022693885611675571507933904060285984683634518247837373342461814007\",\"e\":\"9213744476900260303841834372020508705611055695935609656582945528869017348483315462069109063384834867244894631175515908615472229316524277\",\"v\":\"1361394674984834111683643077917255785582023817503193177349980267978613662529085300062782533543448452588040149736727508971344424359582229032453038390270285844675561259974540613999027814082300974929659373815370276309346415475087135833847534075244583243157955964178245379694084634353193554997655849925100965720800506679746782233053628261009017206515633572545253182429977349991873651049944153388559716194981951533169193078739721763113862345489174316633866600503806221250308154791310916950590501212352106447324581256343806976835181620561093855459966302382705829256823741424967984410381231060524086339311271773108829995598348072220371901000710145590731881430681221096624142246549319350502478641834486074446090501106066977104247318855440012549731831605065600094992098988661482279591617450937988351989155446369724279819934052446268700345476174683770704676702965420043499094720828830804883294062765684891477867502020983963830775902\",\"m\":{\"master_secret\":\"9141231141005949865113808607030010894700074325889179871313744842476454680695107705512560526092299258262523864784925015252058445610782719849260316638415402371990488089489452775345\",\"cso\":\"12953230556549961124330481180905722902804107028356367209094666633190982310886423223908895214545013063723164230794627393261736333475653729661457058109321386148236793157785690770788\"},\"m2\":\"14085328444452797401111632614910540553035111924260080449743851359441369033854307180273923364022505870624802277156552879286908549744555829608610136494309839088191532879091420654769\"},\"ge_proofs\":[{\"u\":{\"0\":\"572791277949630208208244174964797658308527884853437156535319458201352474450383259740500690487479152112853501371624508974709844027046800971991536584658475479810195361002145154788\",\"2\":\"13115855892205303015890548226711195582536087509111775421080490392553888010819538873998591485611566214286954714405435872952865753880044379474113145304493170016437405216683897819982\",\"3\":\"10124467510616395900386729408208557768536716912154494977955101104938977361518382326046501833378501877805053277072414138703731357289717872898225863197603645585257250462053372914020\",\"1\":\"7821101739661097627357983510011574902514846363617882784942930708653953797323863615118203679646653567838147624540081899661028366366254652413849438079613765653434818677495543744778\"},\"r\":{\"3\":\"631347750890855771966783966917298355841834238056669223722087173599248301365749318211875949498610585488611287456553340329986538524866769378869065601243868360505184368722119359186007626319694455039994997509137025105895679772549970972019730351229148932725780977196069231847247977745181487111970691625224406891288101422840488498122290979932779798543595420972912439934317380554380215015556737665663868505106393035753366279616143223229108239025228317155259158650588952691125125783476777173133420735241472971925597654673991758339148676833201179863988652342545447467417907820944988627950874015392538398250054531525364806701868460750660564926156812317097233821340504580784797860359074368993660212290899610222794411127967118887\",\"1\":\"456376995620863520974747519126852691638173328054468825993221149769980675770619395440474558111384411589233196172097219475030757175364179731922375346113174879459839734957271325979845117361227445626847896180846798898118781848093419663967707822657749053904270850349316508802443113868480801702556972737559387570355137128272319401062394438146155729633040809193842601068858973250636283851012182203777630061564034119745542216712625902066878118527781772826987243839012583537160906376091058031119910266201153796390929805331044705740456872421691881436257190664023852603023500089706816452885532734323506046444359193974277394447228811156407205577930314199906322141339615255022824697777123173957386397242848890065337680283315167775\",\"0\":\"347352289164431307508935665402636436310054211154252565838251728675146407394666880506997095158233983674187201007387760008168995523147460350745571649179129098690868010335288885814254760884753159502273727336032803830234278527343773595447079042955859889063501455038369404393214990630417408386989285874729452879081329404763950934155157158642102774254986859733521214546314168741304006848633906023476759979778894924370706032468287602079809907671787701255096641012254778549158603815169997425858424594573776944289706007339307459350159772719572658917992656116308469590363189057373933679074569427808099735231049355552313580081751323618939194151833038981331696883457506395219668900395683617427942010210416074842043297996110452995\",\"DELTA\":\"209870521603729429645549631764376677316355621455189434514442987849929165074656751032294373940782485145742439556208976498297120957201417868058172704608727199640216034207563701742978497668518277263079653897315260875958861383669085259332766302454339685901520582130206273864061109351002489147534849926764570784838974092663857658654038028481010712319529552935969273334686377224052401566083238350357205796314172127250784664561222912192060391961865431438834311060997500615218170860335805726567724341107766631664628225139889304186437327328125157904674798119061315045714953300410282109846296243722241204828491485632614999236223932340193487821488222293227104447889995224249302182181170781547290471915390314958945660747154321989\",\"2\":\"399017568441144480648903191055231793908160562470641474811450756558415585816636796287123038807843090722312694394722011913891973718731884164357568124550060912272111527562225264386161958389481060465771978753624686549209773876736821381542711019606925017015537457970583697220492099593915110805366972075869588955116279916405240691119173410526651108163067839815501689862803733840997657823353606670859513192711519472027211640340845215278217228193657887895903320463929621313651263801356768127191323148127685587379763752319904313676855275001281180809863341525351728517113523128625145278022844789442330511643063753694625393894998458600012260921700424623899592992401492526402717742732352774888333163390132262824731855512867379216\"},\"mj\":\"12953230556549961124330481180905722902804107028356367209094666633190982310886423223908895214545013063723164230794627393261736333475653729661457058109321386148236793157785690770788\",\"alpha\":\"28120732529515857876883611556439314352274820456621374895708408567314458654389361090417234638639191978009435190790883913844933133278035316236235106040626800412580051310609237069446307669116831026301273028600128247727642081882716536509080424703912557075242938917444777912038844757686081246190739535720769974905779684136382323057246065807719876636253408848787467982152236076521770349590475228003719846598390482090302000429311769387982000406112370099826654272617980191943528431976406670356223504846783129765913105816932882267353780087919526421534605571270621284260693537966220276141994081704408032384310962902335909332095627724428483229519560307510064606064424454896992615655277799996151493239976656140156089022836039314527128890866091840279083835512639325742685135866592124649986757288661106819741500932001021767163377105639761252653815717679\",\"t\":{\"DELTA\":\"3060595442913809828362587782550055067964494241968992961183444914653513063625627381409188005648854531730604281883339213720215471830733022641757204312502938020260706651855383543336048342964017356161757620313488296698517917584524574266511455499774514255965429562350427736989499220391509228702921683729972448574881831484875217386995912718614242282465332436057788329722336535976309106361121650797322292657030817654201148300705182229446627616083757463994827890421955253026723530043991349686410704513861215373213862816813546754268526711700048981868510586084703450944078193028867551459444661529441708776170429432887966214278\",\"0\":\"35861860172068169515176432690547179549719976452280613147581142640355757359293092434949750135737146483433458865073870990023931557493035664973268974699115973659267219423800424780944194081528976686799096320064194985724729705704660011661794577474052673366581974831527832698538804428994122857356519017830476739875930948290586865570648543012678389696608972939144111495038779510806327955000630929553682936144179467406011475754674560237835706162960783833421487266395284452692306525388777477877984541731355670349116041815934337939381055935644153463509161399290928347810095467297832526966030952635314534911199928924189962218482\",\"2\":\"65655250171171622511084973310868271881802416103946709633645576891862796073220335004972974673180017529955296237955955015763365820292889096686697025233142306984499054028700199467661200975493940330492765898796025213655661081286854248957371099515989005571750201461271849085445760935693359312194814649921674699582303503251095940634435320467738605785029342767563091701815311248294263175262210629133986587058265970620072063847627807331224379046024629520800851719642699678438442987402306534570332244600008032965189062038310001099578747215549380559452182965554396292500236274505675273203782630237394383496798721134409534636228\",\"3\":\"79858134322066123953118169502899469953535139986644469991899517534477186817120682267661230048740114353555614942721687182906085405436671795053919378788245831009815529929036540091897919854372665021947334399396813722761627777633705291270921740557672268216486851579657509548382615923133127175161119411483116547269521678133902118578040644254124909318197951145206933926273480571878788041997916817626297765064250039704968722193171247485638985652467532559706903076303397412110212974631793478729793951935009363360367867646804963150101402823982386108836255253262091555162890301674206870174192785181317090460014964932748120889887\",\"1\":\"76898638503345957719433322321097887387682991357117372644357344089870554517067933121054540545082198280215109017300200960612309290189302805339827317947570329132246221160541080062711613836321874130448375618689884575478299578380443855127302909096606432782531069412450220967129596483970985559597447948078500649954949240323814007107981288506925869423838148472544143285348196645748573626536285161692022994995692564377626176878263882394596668544057152791401462031510165908277351668178260532137263704103030106634600445608977487863024318006367577541995721469037283279950274126766725351716818081063912489263417302043675882684917\"},\"predicate\":{\"attr_name\":\"cso\",\"p_type\":\"GE\",\"value\":902}},{\"u\":{\"3\":\"3593718401191570431119119914026770122225254069674175226706925960064288542218237154475537419285241309140543735602287918998272278505550452308091237567257677225376470187075420556804\",\"1\":\"12103193037585503267840477652635489819015660089465871144285952628350279181172071223498652838897564344121451712952700973776129644493957531886730209381470727557753744331797764729222\",\"0\":\"3264172557316686655054368178024885862554678872366655591713928921791263021656539654985969888352870593153561045974472284113816876607113965473410776245610059338786520983731075268292\",\"2\":\"8517389236212165086494979491978845761039595975255068331176306415792558800223622441313033741135531352017087539223921970054728060405238375258794422545277038544581922610795355857131\"},\"r\":{\"2\":\"509786073711881732427845831740550767983139975469880742770896687223798178256757538080865791865440304586953385868248670616809678458129521338779455496945587643273656318917823699885431431705117760131564409316539349909544127176960663976369586178157878963161513811285428495924918146477858808760200884176488736406067489642240042949819015994295857639373452231248317916794530443458729205903380924460226783914340531492894960723071273649083083331242417253724758988794355011387214639699525443335231412411769133310210759295005919783030478121681892633839827307246906164480984451633270298975396451627161746223265960579350943388589077236492474159433712741370379567747681216545508167283276593431358875775607685685689812765629887431109\",\"DELTA\":\"536693261098496644642900069095077167062753070900089890014446030143570783968288000808275473421016632521581500930787044531093521245323707110561896809402066879058431859238287658174451757829796456658725441095520917102619924565976442980167978411223112521498934600868874718237062517783201999970215066753954906218432326685497510970722203542210543895095386070797009942888634101066021209764407064842563165359513829436573196436682287813496085378172089378095129678912076457028321563976552476426486896667806534422958721392637805323477195815182924139467118729604357987154580154177514474929435274337378303115019932041131535570103364309877142469485150007681704691928151087246907774554203015096450431900207845622348817460965575829882\",\"0\":\"612182871393918004526045706704497756760151253087487993067395281959211142460892417508418166665747196080518467673506803738129212598886474128789977487459449925270476950721703465816218474737445003696515466079327059386568292408764107244086631774164823761896782991379313313096918748392460848525606086730095941518906487218405478267136338351229980720385240878957570134110419350316876383995902489876121326424370453127716770422350800916532114198941509140908287285084398081398253667663313379607699999292535360219251055385845853592720957253221141918452816729592612150772732234061012157429033838261071048860124170015294727669335744890708486393916871154528669318974361130488781895663041236156554828519657620638015959038018987200899\",\"1\":\"565080140043507336247145943396305393123620229792054645019311751200746474539702895664349114346163165271204102089971582524644857432397796256970680597905836160952942460098743293799544081110726059884144155697922863155622154505594224729728037614642426188532152089124254569067693304769185164278124752324208345627745407193678511228838320077604498487803399896165255844199853079443263056853126561813145785305334511955051100840642393168513902800151943305725357527644619410251171950243256558969261026523149912930671156013297750619202014199625956088949020727627048686844988847348155720809136500274823027949244687558403343432645414339975590643768882960545473152904912088840081500475592102954905488256764663432844620572982666137402\",\"3\":\"35742343817826764741793859328238598871823863458059527985506641060316714272417392236791759148056786848907978594214340504609222655784323770134245194422888083463338733872826149451638799164316440153887714168975074998168994336500799302189937195887851865926455677619225809432640950981781126366715717409805332957164443319316377428235353250538820346618422959228143588454207202465045802761850783971929503751773705543109033228448182337817502780871574788696210254050158942314455152735205243372108346805580522803253765405790778951395791207128988020720250849029166640481560462413982385336103082403237393501801777003666150488480539539459325613399480890612364272331550096899165195574270585773294997963733411773974445835805384925252\"},\"mj\":\"12953230556549961124330481180905722902804107028356367209094666633190982310886423223908895214545013063723164230794627393261736333475653729661457058109321386148236793157785690770788\",\"alpha\":\"30886848585778163420846921224836818624262251977356664826911484154915500984844034376085851151646087288785683094677444091608675635000074082907659805625640965775969789476739520077544539076277351316918207637913005400179574797208036358436156052021037972201116250926480321783074036104650241451184418897609348502766070717740154659493272620470376801074740176419165204021616656238801395219625038881695477348280658603928684106227751464849028791747977061723008012157115684545547132405960376423907772548566029496944068708618739240661098622018255846447224666292577990469322061913136452266543472311445089602145405035917390620003444286643215022914905789360283974721885846490481535908602180326821050053541780559791354685264781414266175626932232717042725796188773164025706918194575187296410787547120875002936717855445788743807854487896133147903279302622915\",\"t\":{\"DELTA\":\"101037141975109196421302491697374022308725252429629408386899097821742447131573026596567203631770229943710499411262743933571322622793538175396920910399952301062099976365542227505284726453002448053424770344966229647121331249399237820622785783285789545323185645168515879841317418832368814181933994897719330650002364940885296933109420431955219644794672291477632703595417058246834252392064279892748783611871574165124344127655574321581841044452825997540343396077369717921522655952455277951732351787427097295647270785486663303670912412207070829759351635540784618856980410130168009737647857773636419821906943439800445697967455\",\"1\":\"51441990141503620669868318484814198187057669223681798155295022128445672695573053656668825118171962694233824121906943760686738197316350884781102321628582791656380545060243686754743917214188171759476389580605353158747787166170242830360754574390951254397276127846571535323796486055419319674415865903080726261629904810572172507104663466535347677053335492328410961141447657138615826618633589355285014626697999140066529924177169210014141355404414454710772892395838624797608752799556506907714835773531655367643690757592553538123266917867865337097960027029124196187112564130911845295447954678584292622130934050793502389467314\",\"0\":\"36280145131023178927216970111183821002101803182427952737426368766156874692134975577251969093650436883379882742184566833697878779143086219895795743424671720178511252489423862592919803462897489170234863492246996880833357275438141267316339793917759176002357449434902604373474078068589323531139555709484814076399703112412697648776156436781818515190161643585206193649154491643262846975325975830086065928627762493813685453736086652533812136299334514319426752411395274964718056062308787003483530383846516098680602043909248765341249901873198794878680179205895389016095351175636224247633432742205184735428148706996838080341458\",\"2\":\"76175293047045905792354780802796477906464837043780976355386119389837799849666020122841220749237872959168515330967725937628298703086920103379828641115429192580594358472163305917891002597593127498074670856162185727171256345115939180153850291676266650663205830388556424561068304262421238261516641364643641648964691646811770219330343538847296423699114996520968476036763665603860311134571689734494975020540190104116921950045519635006961540638331380020210093161596977866794873306687682201332286871911612101446464972837067001785986044920062379936369108959286855939978514421089585007016927686980515023964850497747948637897395\",\"3\":\"54399074757788442212398127390299811103138519805247634057199162623756085715237763343030722211221228518676226731447747391925518499401749041892746519309637984353386261473695446627641655172595893242860963118242488871798297924593168263231132372349104321051909281716184636951800080806561662934288893223876091183201429089169037941476252873886247019254091908046458193203777351068622844290478331043508986139565500958988576826014623269695554245675519497264821810912111660030267055526055597273233774816503038851510955011858288779325110017140717468322300765994765802182575334373744663105864243195218307807652757614203892301055282\"},\"predicate\":{\"attr_name\":\"cso\",\"p_type\":\"LE\",\"value\":902}}]},\"non_revoc_proof\":\"None\"}],\"aggregated_proof\":{\"c_hash\":\"17461057506737605324833336900510282046294951231469101490274946975670901694302\",\"c_list\":[[3,10,223,185,128,217,214,40,230,114,97,169,163,118,230,214,103,174,6,164,183,255,0,194,248,206,57,249,73,169,184,249,254,21,212,237,241,180,159,133,136,75,7,219,245,151,75,121,64,238,228,231,213,149,237,255,192,195,210,10,150,224,241,113,241,218,110,37,13,18,47,167,117,176,62,53,115,153,110,121,177,109,61,171,33,135,142,208,103,181,70,63,210,235,190,182,248,201,40,58,177,111,242,32,11,12,73,149,238,254,7,41,166,60,44,236,146,211,128,56,229,38,182,65,237,152,226,246,76,188,251,19,170,122,155,140,231,127,30,43,91,22,195,72,58,46,80,156,43,131,34,121,188,27,31,196,54,70,11,236,96,246,123,13,141,148,106,134,246,183,154,116,217,221,187,29,68,99,129,253,20,155,75,85,84,37,47,201,86,2,158,71,241,221,151,186,204,45,88,158,218,96,235,168,75,59,136,138,155,177,142,94,252,53,151,150,236,114,170,205,41,197,74,138,177,83,76,56,37,184,244,116,173,28,175,99,73,112,205,135,47,47,117,207,182,39,243,208,68,105,91,229,156,249,13,100,247],[1,28,20,165,181,68,120,149,254,67,63,77,254,141,188,88,113,60,96,88,172,151,76,107,59,19,142,138,67,214,243,217,6,121,36,184,96,115,243,22,237,148,39,13,147,108,83,138,54,52,227,246,221,161,158,238,227,60,94,103,223,89,123,212,234,212,45,138,242,27,177,17,239,55,199,130,157,66,26,121,101,255,198,172,175,42,215,40,70,95,78,160,89,209,57,138,231,127,84,49,112,189,225,153,153,85,14,85,163,151,242,160,20,202,116,12,51,59,1,213,169,100,172,250,141,48,208,5,18,251,33,82,244,9,52,206,77,122,123,24,82,22,49,69,41,32,123,132,104,73,72,195,35,197,189,114,9,110,134,206,147,192,20,228,103,184,207,73,55,5,40,48,253,210,192,75,136,28,132,17,72,191,91,197,171,35,76,208,18,113,52,38,164,171,88,23,11,113,202,13,21,129,74,255,219,235,2,209,9,6,169,101,252,180,163,58,105,65,132,79,231,107,25,186,152,153,250,59,188,121,219,78,202,76,114,200,101,222,153,250,65,117,242,177,219,168,254,251,131,161,81,146,234,142,19,43,242],[2,97,39,144,236,251,197,214,135,54,79,210,59,60,61,158,178,158,21,39,44,83,224,196,71,51,2,45,87,146,245,57,164,33,198,166,99,133,52,221,126,43,128,54,163,21,142,110,46,187,24,57,33,141,227,207,176,200,89,123,66,197,9,91,42,189,235,119,183,222,160,239,116,146,103,242,178,247,204,113,85,58,34,154,220,172,25,141,24,223,98,124,113,94,80,253,191,62,245,188,188,249,194,15,84,9,204,191,69,40,104,162,213,209,105,209,197,119,109,198,162,29,29,148,103,23,32,107,243,153,45,39,11,217,65,9,103,77,8,105,128,89,86,179,184,87,6,114,225,111,116,231,35,105,122,185,237,213,147,65,98,25,14,227,83,119,116,45,70,61,193,48,184,175,8,77,158,218,122,252,186,166,133,223,55,50,148,177,164,101,99,12,148,122,192,80,39,110,113,234,149,9,193,205,157,98,12,209,103,131,53,200,100,69,86,223,33,178,30,174,203,182,144,66,124,78,57,159,243,68,93,186,249,51,218,180,68,92,192,139,201,181,148,241,157,12,62,112,235,43,59,196,221,160,232,1,245],[2,8,22,250,189,49,187,177,113,226,154,153,155,165,176,240,69,93,58,224,157,34,71,8,87,202,255,108,28,210,160,175,240,165,210,184,9,163,41,164,117,204,2,66,56,25,153,173,84,215,61,29,151,104,217,39,186,194,63,101,94,159,129,0,25,213,91,178,121,129,233,127,22,199,244,238,146,53,174,186,128,202,39,223,133,65,72,242,55,117,56,190,52,145,76,142,157,36,127,227,20,9,63,213,245,41,191,16,64,108,92,92,200,205,95,179,51,47,0,148,62,62,71,90,178,31,188,151,49,72,132,3,219,162,121,203,113,131,51,7,199,179,81,123,189,179,240,5,237,33,156,96,67,127,2,110,42,16,156,189,210,43,251,47,37,232,162,149,95,146,243,75,17,233,209,160,34,17,79,220,243,144,248,103,223,169,80,94,193,136,78,122,84,225,218,29,81,121,151,50,51,234,234,206,36,205,146,191,17,228,110,68,35,169,158,58,232,254,236,119,129,194,168,123,220,30,39,31,189,145,229,173,228,49,56,243,35,222,194,245,222,144,39,23,0,108,183,252,44,125,40,239,106,10,87,128,196],[2,120,153,40,188,246,20,140,222,10,217,103,24,123,132,150,93,195,156,168,17,245,242,181,166,153,219,64,5,27,183,203,27,32,127,24,198,133,72,69,11,71,187,68,229,192,150,95,36,139,109,206,49,83,212,9,85,183,206,140,211,231,254,138,15,225,79,101,107,0,22,185,4,242,246,132,76,0,110,178,189,17,203,55,101,250,169,119,224,189,243,91,169,60,42,133,242,44,32,223,176,113,121,210,27,33,91,232,162,87,13,1,207,195,80,35,13,124,135,143,17,235,193,240,147,193,224,94,33,197,142,48,114,65,151,238,113,205,217,141,191,119,6,231,80,189,254,185,118,87,68,227,104,190,114,49,44,6,14,6,254,39,170,204,33,223,15,95,167,59,215,188,168,203,247,250,105,12,17,104,183,161,111,251,81,17,124,255,83,25,136,23,83,129,247,5,18,239,232,61,53,10,105,65,39,238,178,176,144,112,97,185,21,187,131,95,206,61,237,144,90,138,224,183,75,84,101,128,77,98,121,83,45,1,220,235,51,51,242,211,81,134,58,178,21,107,95,133,77,88,229,68,215,36,219,26,31],[24,62,157,48,95,224,97,127,139,93,246,32,226,75,203,248,119,108,145,171,18,138,172,99,36,24,11,176,240,99,121,240,108,172,203,237,144,62,252,203,209,79,49,253,14,251,167,165,135,199,185,35,35,43,245,65,26,232,139,93,82,209,104,79,139,89,169,208,212,155,67,52,67,83,118,199,115,146,246,128,251,23,230,8,45,158,95,167,53,148,171,48,152,50,79,76,84,155,172,220,187,227,226,102,78,13,28,170,38,103,85,171,54,113,217,88,197,63,129,108,213,173,159,36,78,236,235,46,22,230,163,51,242,128,179,169,98,133,172,204,115,22,148,209,118,107,12,235,12,51,48,35,191,48,77,197,254,111,115,80,135,196,129,45,218,60,7,76,88,178,46,122,230,142,171,210,84,194,140,186,20,146,154,227,86,195,211,158,26,112,182,110,109,0,68,130,226,210,192,239,133,125,105,197,247,231,186,218,204,167,232,253,245,140,235,56,79,82,30,223,148,170,142,223,28,11,182,56,173,122,144,44,67,229,228,56,126,120,144,12,115,38,229,197,3,204,176,198,130,28,169,68,223,128,168,134],[1,31,100,228,77,168,130,241,68,247,49,59,116,124,59,135,39,216,26,2,155,182,163,36,253,232,97,174,118,43,190,136,98,134,189,25,22,36,39,100,74,53,72,192,134,247,82,190,121,221,104,136,32,155,189,188,220,178,169,224,110,56,82,242,77,122,142,166,177,142,113,69,107,58,186,249,19,133,9,212,150,232,195,233,84,53,189,225,208,167,115,163,99,221,56,43,37,55,185,95,251,243,110,240,90,174,130,33,184,69,140,109,30,63,83,207,162,249,20,110,83,117,143,80,64,188,140,248,176,142,201,50,239,80,19,29,249,183,106,93,135,186,155,13,228,178,250,78,14,123,51,99,166,191,135,156,129,88,156,95,255,191,146,150,86,2,63,11,252,107,24,52,72,20,44,148,190,106,226,239,245,254,213,138,180,104,57,66,127,21,104,183,53,191,116,70,209,88,121,87,221,130,18,112,208,174,153,120,228,242,224,178,243,109,53,27,91,146,9,49,175,230,23,8,251,241,246,146,82,135,46,205,182,38,226,107,239,132,181,99,144,196,117,11,0,232,149,216,3,127,29,31,167,23,106,101,210],[1,151,127,194,39,50,185,133,187,148,237,210,208,83,94,91,240,119,216,219,166,138,254,161,8,59,104,48,107,164,107,105,140,139,234,7,247,131,35,156,55,94,6,119,236,49,87,105,66,79,193,80,46,104,73,156,85,190,103,189,121,67,211,45,71,15,229,189,87,209,6,63,11,89,6,152,57,120,251,30,65,204,65,144,216,137,0,95,112,133,239,253,143,224,255,247,126,195,148,154,58,20,133,24,29,116,148,20,128,64,168,77,214,130,216,11,240,129,114,116,255,69,144,111,234,192,113,62,253,216,198,140,67,142,241,3,229,249,111,113,7,107,25,0,172,82,29,126,68,133,66,208,34,29,235,76,189,87,9,185,244,20,251,252,62,192,30,202,32,99,23,190,100,94,92,200,22,216,106,214,204,80,181,75,101,110,107,252,24,167,129,46,131,170,149,215,140,30,239,47,109,37,121,133,26,152,197,174,75,99,225,125,67,161,188,252,3,123,247,85,160,142,225,5,107,81,226,149,204,126,80,134,79,206,41,173,198,29,11,39,223,184,185,172,175,105,20,147,45,96,86,247,47,108,234,120,178],[2,91,108,175,169,113,175,134,36,46,113,207,126,73,235,53,104,155,138,1,122,236,146,138,179,251,100,12,50,151,140,57,44,177,116,3,182,7,167,150,197,11,34,134,196,84,32,154,115,188,201,113,234,111,144,136,121,250,63,203,128,126,118,27,160,184,218,32,125,77,3,185,158,48,184,92,23,39,82,113,5,85,113,107,183,15,150,40,55,72,31,109,140,198,212,94,186,52,135,78,148,240,114,153,138,28,126,81,235,38,233,246,33,36,157,105,14,80,117,55,66,188,140,27,47,55,224,103,198,115,113,94,61,138,142,168,13,137,236,43,222,103,157,140,207,41,30,183,74,63,79,22,251,150,91,76,162,22,99,77,194,175,209,21,126,169,165,20,195,130,46,144,184,173,89,58,39,85,108,195,131,130,44,13,13,186,15,9,21,119,27,160,21,202,5,54,103,105,79,198,135,52,54,115,130,143,67,145,32,132,119,60,223,0,54,3,117,15,109,113,6,91,167,249,16,55,225,157,41,131,62,67,250,199,131,161,120,197,109,229,196,12,203,155,13,140,26,137,230,99,32,181,20,141,197,194,179],[1,174,236,118,51,152,247,251,140,20,125,42,207,20,73,149,205,106,100,192,13,50,48,156,49,3,162,255,143,183,85,130,103,12,70,214,255,12,206,118,123,241,169,15,102,180,244,3,95,160,187,158,254,130,78,55,158,40,98,229,61,102,169,151,98,160,17,227,211,100,153,28,179,190,233,218,183,39,196,23,82,136,233,18,176,47,244,103,137,64,201,28,210,29,251,94,200,223,159,160,89,150,118,59,90,238,238,158,205,58,21,200,192,125,109,134,19,95,94,184,219,240,30,215,237,50,35,3,192,168,209,226,48,241,82,238,44,21,47,86,250,229,163,217,248,133,237,155,152,216,124,89,39,237,22,95,128,101,161,181,9,240,131,112,156,213,99,254,98,126,89,61,105,80,254,103,226,3,238,85,196,220,24,65,155,53,27,59,62,31,118,178,104,228,175,250,171,7,71,119,160,151,11,133,103,138,89,18,29,114,133,151,160,36,108,192,143,22,248,57,158,1,35,31,104,69,85,25,239,107,121,145,82,20,230,13,89,28,113,248,238,244,155,100,247,36,24,231,227,241,188,120,201,205,120,69,50],[3,32,94,75,54,2,58,168,163,243,82,191,117,82,39,123,172,71,56,191,131,175,212,39,67,175,228,147,250,90,191,80,213,156,168,141,151,233,228,216,128,134,1,180,121,249,212,231,241,215,182,211,27,99,9,51,143,169,207,202,254,242,128,136,20,40,81,122,49,26,39,116,69,72,54,37,60,87,250,55,154,95,202,120,191,199,99,15,105,128,107,110,25,49,43,194,232,147,137,128,5,19,235,100,59,190,98,146,235,196,204,130,121,228,183,248,149,72,239,42,165,70,97,239,22,69,105,90,64,227,89,194,15,152,24,222,170,43,173,21,111,65,201,42,230,41,0,104,53,77,197,232,20,7,145,141,159,97,225,57,159,227,97,90,215,239,208,37,182,101,206,52,146,245,126,43,83,206,74,187,162,66,207,153,101,103,177,112,150,187,35,246,64,48,206,172,63,223,188,74,186,114,249,130,189,105,4,239,85,181,140,113,56,77,204,137,131,96,108,50,106,82,147,131,16,156,19,110,218,13,67,98,208,224,252,142,157,165,71,84,250,198,158,199,85,1,83,25,92,188,42,169,54,98,126,197,95]]}},\"requested_proof\":{\"revealed_attrs\":{},\"self_attested_attrs\":{},\"unrevealed_attrs\":{},\"predicates\":{\"cso_id_min\":{\"sub_proof_index\":0},\"cso_id_max\":{\"sub_proof_index\":0}}},\"identifiers\":[{\"schema_id\":\"NcYxiDXkpYi6ov5FcYDi1e:2:CSO-Info-Credential-Schema:1.0\",\"cred_def_id\":\"NcYxiDXkpYi6ov5FcYDi1e:3:CL:NcYxiDXkpYi6ov5FcYDi1e:2:CSO-Info-Credential-Schema:1.0:CSO-Info-Credential-Definition\",\"rev_reg_id\":\"None\",\"timestamp\":\"None\"}]}";
-
-  //         mCommonUtils.writeLine(Ring.singleSign(payload));
-  //         System.exit(0);
-
-//            csDID = DIDUtils.createCSDID(csWallet);
-//
-//            mCommonUtils.stopTimer();
-//            byte[] sigBytes = CryptoUtils.generateMessageSignature(csWallet, csDID.getVerkey(), payload.getBytes());
-//            mCommonUtils.writeLine("Signature Generation size " + sigBytes.length );
-//            mCommonUtils.stopTimer();
-//            boolean a  =  CryptoUtils.verifyMessageSignature(csDID.getVerkey(), payload.getBytes(), sigBytes);
-//
-//            mCommonUtils.writeLine("Signature Verification is " + a );
-//            mCommonUtils.stopTimer();
-
-
-            mCommonUtils.startTimer();
-            JSONArray pbKeyList = new JSONArray();
-            String verkey = CryptoUtils.generateAndStoreKey(csWallet, "0000000000000000000000000CS-0000");
-            mCommonUtils.writeLine("public key is "+ verkey);
-            pbKeyList.put(verkey);
-            for( int i=1; i < 50; i++) {
-                pbKeyList.put(CryptoUtils.generateAndStoreKey(csWallet, "0000000000000000000000000CS-" + String.format("%04d", i)));
-            }
-
-            String pbKeyListString = pbKeyList.join("|").replaceAll("\"", "");
-
-            mCommonUtils.writeLine("Anonymity Set Creation");
-            mCommonUtils.stopTimer();
-
-/*
-
-
-            mCommonUtils.writeLine("Signature Generation");
-            // Ring Signature call
-
-//            byte[] proofSignatureRaw  = Ring.sign(payload.getBytes(), "0000000000000000000000000CS-0000".getBytes(), pbKeyListString );
-            String proofSignatureRaw  = Ring.sign(payload.getBytes(), "0000000000000000000000000CS-0000".getBytes(), pbKeyListString );
-
-            //String proofSignature = Base64.getEncoder().encodeToString(proofSignatureRaw);
-
-            mCommonUtils.writeLine(proofSignatureRaw);
-     //       mCommonUtils.writeLine("sign length: " + proofSignatureRaw.length );
-            mCommonUtils.writeLine("Signature Generation Ends");
-            mCommonUtils.stopTimer();
-       //     System.exit(0);
-
-
-
-            // Ring Signature verification
-
-            if(! Ring.verify(payload.getBytes(), proofSignatureRaw, pbKeyListString)) {
-                System.exit(0);
-            }
-
-            mCommonUtils.writeLine("Signature Verification");
-            mCommonUtils.stopTimer();
-*/
-
-
-
-            // 4. Pool configuration + connection
-
-            Log.i(this.getClass().toString(), "Creating test pool configuration...");
-            PoolUtils.createSOFIEPoolConfig();
-            Log.i(this.getClass().toString(), "Test pool configuration created.");
-
-            Log.i(this.getClass().toString(), "Connecting to SOFIE pool...");
-            mSofiePool = PoolUtils.connectToSOFIEPool();
-            Log.i(this.getClass().toString(), "Connected to SOFIE pool.");
-
-
-            mCommonUtils.writeLine("Pool Connection");
-            mCommonUtils.stopTimer();
-
-            // 5. DIDs creation
-            // TODO: Create option for creating multiple CS DIDs and create Anonymity set Credential
-
-            Log.i(this.getClass().toString(), "Calculating CS DID...");
-            //csDID = DIDUtils.createCSDID(csWallet);
-            Log.i(this.getClass().toString(), String.format("CS DID calculated: %s - %s", csDID.getDid(), csDID.getVerkey()));
-
-            Log.i(this.getClass().toString(), "Calculating steward DID...");
-            DidResults.CreateAndStoreMyDidResult stewardDID = DIDUtils.createStewardDID(stewardWallet);
-            Log.i(this.getClass().toString(), String.format("CSO steward DID calculated: %s - %s", stewardDID.getDid(), stewardDID.getVerkey()));
-
-            Log.i(this.getClass().toString(), "Calculating and writing on ledger CSO DID...");
-            DidResults.CreateAndStoreMyDidResult csoDID = DIDUtils.createAndWriteCSODID(csoWallet, stewardWallet, stewardDID.getDid(), mSofiePool);
-            Log.i(this.getClass().toString(), String.format("CSO DID calculated and written on ledger: %s - %s", csoDID.getDid(), csoDID.getVerkey()));
-
-            mCommonUtils.writeLine("DID Creation");
-            mCommonUtils.stopTimer();
-
-
-            // R. Create anonymity set
-
-            // 10. Credentials creation
-             JSONArray singlePbKey = new JSONArray();
-             singlePbKey.put(csDID.getDid());
-
-             String isoDate = getISODate();
-             csCred = new JSONObject()
-                    .put("@context", new JSONArray(new String[] {"https://www.w3.org/2018/credentials/v1",
-                            "https://www.w3.org/2020/credentials/cs-info/v1"}))
-                    .put("id", "https://www.w3.org/2020/credentials/cs-info")
-                    .put("type", new JSONArray(new String[] { "VerifiableCredential",
-                            "CSInfoCredential"}))
-                    .put("credentialSubject", new JSONObject().put("id", singlePbKey).put("district", 1)) // simple credential
-                    .put("issuer", csoDID.getDid())
-                    .put("issuanceDate", isoDate)
-                    .put("expirationDate","2024-12-31T23:59:59Z");
-
-            JSONObject rsCred = new JSONObject(csCred.toString());
-            mCommonUtils.stopTimer();
-
-            String jwsSignature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(csoWallet, csoDID.getVerkey(), csCred.toString().getBytes()));
-            mCommonUtils.writeLine("signature size = " + jwsSignature.getBytes().length);
-
-            JSONObject proof = new JSONObject()
-                    .put("type", "Ed25519Signature2018")
-                    .put("created", isoDate)
-                    .put("proofPurpose", "assertionMethod")
-                    .put("verificationMethod", csoDID.getVerkey())
-                    .put("jws", jwsSignature);   // what fields to include in JWS??
-
-            csCred.put("proof", proof);
-
-            mCommonUtils.writeLine("SIMPLE CREDENTIAL CREATION, size = " + csCred.toString().getBytes().length);
-            mCommonUtils.stopTimer();
-
-            // CREATING RS Credential
-
-            rsCred.remove("credentialSubject");
-            rsCred.put("credentialSubject", new JSONObject().put("id", pbKeyList )    // RS Credential
-                            .put("district", 1));
-
-            jwsSignature = Base64.getEncoder().encodeToString(CryptoUtils.generateMessageSignature(csoWallet, csoDID.getVerkey(), rsCred.toString().getBytes()));
-            mCommonUtils.writeLine("signature size = " + jwsSignature.getBytes().length);
-
-            JSONObject proofRS = new JSONObject()
-                    .put("type", "Ed25519Signature2018")
-                    .put("created", isoDate)
-                    .put("proofPurpose", "assertionMethod")
-                    .put("verificationMethod", csoDID.getVerkey())
-                    .put("jws", jwsSignature);   // what fields to include in JWS??
-
-            rsCred.put("proof", proofRS);
-            mCommonUtils.writeLine("RING CREDENTIAL CREATION, size = " + rsCred.toString().getBytes().length);
-            mCommonUtils.stopTimer();
-
-            // 16. Wallets de-initialisation
-
-            Log.i(this.getClass().toString(), "Closing CSO wallet...");
-            csoWallet.close();
-            Log.i(this.getClass().toString(), "Closing steward wallet...");
-            stewardWallet.close();
-
-            mCommonUtils.writeLine("Wallet closing");
-            mCommonUtils.stopTimer();
-
-//            Log.i("lister", "List starts");
-//            for (String tm : mCommonUtils.getTimeList()) {
-//                Log.i("lister", tm);
-//            }
-
-//            final Intent intent = new Intent(ACTION_INDY_INITIALIZED);
-//            intent.putExtra("times", mCommonUtils.getTimeList());
-//            LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-
-            // Saving creds to local cache.
-            storage.edit()
-                    .putString(CSO_DID, csoDID.getDid())
-                    .putString(CS_CRED, csCred.toString())
-                    .putString(RS_CRED, rsCred.toString())
-                    .apply();
-
-            if(getCredType()) {
-                csCred = new JSONObject(storage.getString(RS_CRED, ""));
+            if (getCredType()) {
+                JSONArray csDidList = DIDUtils.getBulkCSDID(50);
+                csInfoCredential = CredentialUtils.getRingCSInfoCredential(csDidList, csoDID);
             } else {
-                csCred = new JSONObject(storage.getString(CS_CRED, ""));
+                csInfoCredential = CredentialUtils.getCSInfoCredential(csDID, csoDID);
             }
+           //mCommonUtils.writeLine("time: " + (SystemClock.elapsedRealtime() - start) + " credential size: " + csInfoCredential.toString().length());
 
 
+            // Experiments Regular Sign CALCULATION
+//            JSONObject fakePresentation = PresentationUtils.generateCSPresentation(csDID, "fake_ev_did", csInfoCredential );
+//            String data = fakePresentation.getJSONObject("proof").getString("signatureValue");
+//            OutputStreamWriter outputStreamWriter = new OutputStreamWriter(this.openFileOutput("config.txt", Context.MODE_PRIVATE));
+//            outputStreamWriter.write(data);
+//            outputStreamWriter.close();
+            //PresentationUtils.verifyCSPresentation(fakePresentation, csInfoCredential);
+//            mCommonUtils.startTimer();
+//            RingSignatureUtils rs = new RingSignatureUtils(null, csInfoCredential.getJSONObject("credentialSubject").getJSONArray("id"));
+//            Ring.sign(csInfoCredential.toString().getBytes(), PeerDID.PeerEntity.CS.getSeed(), rs.ringDidList);
+//            mCommonUtils.stopTimer();
+//            mCommonUtils.writeLine("Ring signature creation time");
+
+            // Step 3: CS -> EV = Exchange Invitation
+            csInvitationKeypair = ExchangeUtils.getCSInvitationKeyPair();
         } catch (Exception e) {
-            if (e instanceof IndyException) {
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
-                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
-            }
             e.printStackTrace();
         }
-
     }
+
 
     public String getISODate() {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
-        return  df.format(new Date());  // iSO 8601
+        return df.format(new Date());  // iSO 8601
     }
 
-    public void releaseResources() {
-        indyOperationHandlerThread.quitSafely();
-
-        try {
-            // 14. Pool disconnection
-
-            Log.i(this.getClass().toString(), "Closing test pool...");
-            mSofiePool.close();
-            Log.i(this.getClass().toString(), "Test pool closed.");
-
-            // 15. Wallets de-initialisation
-
-            Log.i(this.getClass().toString(), "Closing CS wallet...");
-            csWallet.close();
-            Log.i(this.getClass().toString(), "CS wallet closed.");
-
-            mCommonUtils.stopTimer();
-
-        } catch (Exception e) {
-            if (e instanceof IndyException) {
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkBacktrace());
-                Log.e(this.getClass().toString(), ((IndyException) e).getSdkMessage());
-                Log.e(this.getClass().toString(), String.format("%d", ((IndyException) e).getSdkErrorCode()));
-            }
-            e.printStackTrace();
-        }
+    private static void log(int priority, String message) {
+        Log.println(priority, MainActivity.class.toString(), message);
     }
-
 }
 
 

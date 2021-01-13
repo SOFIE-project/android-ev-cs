@@ -1,0 +1,15 @@
+<component name="libraryTable">
+  <library name="Gradle: com.goterl.lazycode:lazysodium-android:4.2.0@aar">
+    <CLASSES>
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/9c8827d6d2b1035ca8e7930206872804/lazysodium-android-4.2.0/AndroidManifest.xml" />
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/9c8827d6d2b1035ca8e7930206872804/lazysodium-android-4.2.0/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/9c8827d6d2b1035ca8e7930206872804/lazysodium-android-4.2.0/res" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.goterl.lazycode/lazysodium-android/4.2.0/d83028ed15b0ba42bf20d4478256bd6253208262/lazysodium-android-4.2.0-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.goterl.lazycode/lazysodium-android/4.2.0/e27a981ab39ff6ccd32aabe6374a79f36874b7d8/lazysodium-android-4.2.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

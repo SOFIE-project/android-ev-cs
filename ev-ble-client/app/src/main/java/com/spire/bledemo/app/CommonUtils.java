@@ -36,6 +36,15 @@ public class CommonUtils {
         timer_end = 0;
     }
 
+    public synchronized String getLapTime() {
+        timer_end = SystemClock.elapsedRealtime();
+        long timeDifference = timer_end - timer_start;
+        timeList.add(timeDifference);
+        timer_start = timer_end;
+        timer_end = 0;
+        return " " + timeDifference;
+    }
+
     public void writeLine(final String text) {
 
         String normalizedText;
